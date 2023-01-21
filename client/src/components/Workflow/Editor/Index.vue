@@ -91,6 +91,7 @@
                             <div class="unified-panel-header-inner">
                                 <WorkflowOptions
                                     :has-changes="hasChanges"
+                                    :has-invalid-connections="hasInvalidConnections"
                                     @onSave="onSave"
                                     @onSaveAs="onSaveAs"
                                     @onRun="onRun"
@@ -112,6 +113,7 @@
                                     @onChangePostJobActions="onChangePostJobActions"
                                     @onAnnotation="onAnnotation"
                                     @onLabel="onLabel"
+                                    @onUpdateStep="onUpdateStep"
                                     @onSetData="onSetData" />
                                 <FormDefault
                                     v-else-if="hasActiveNodeDefault"
@@ -121,6 +123,7 @@
                                     @onLabel="onLabel"
                                     @onEditSubworkflow="onEditSubworkflow"
                                     @onAttemptRefactor="onAttemptRefactor"
+                                    @onUpdateStep="onUpdateStep"
                                     @onSetData="onSetData" />
                                 <WorkflowAttributes
                                     v-else-if="showAttributes"
@@ -185,7 +188,7 @@ import WorkflowGraph from "./WorkflowGraph.vue";
 import { defaultPosition } from "./composables/useDefaultStepPosition";
 import { useConnectionStore } from "@/stores/workflowConnectionStore";
 
-import Vue, { onUnmounted, computed } from "vue";
+import Vue, { onUnmounted, computed, ref } from "vue";
 import { ConfirmDialog } from "@/composables/confirmDialog";
 import { useWorkflowStepStore } from "@/stores/workflowStepStore";
 import { useWorkflowStateStore } from "@/stores/workflowEditorStateStore";
@@ -247,6 +250,9 @@ export default {
             return null;
         });
 
+        const hasChanges = ref(false);
+        const hasInvalidConnections = computed(() => Object.keys(connectionsStore.invalidConnections).length > 0);
+
         function resetStores() {
             connectionsStore.$reset();
             stepStore.$reset();
@@ -257,6 +263,8 @@ export default {
         });
         return {
             connectionsStore,
+            hasChanges,
+            hasInvalidConnections,
             stepStore,
             steps,
             nodeIndex: getStepIndex,
@@ -276,7 +284,6 @@ export default {
             markdownText: null,
             versions: [],
             parameters: null,
-            hasChanges: false,
             report: {},
             labels: {},
             license: null,
@@ -297,7 +304,7 @@ export default {
             saveAsAnnotation: null,
             showSaveAsModal: false,
             transform: { x: 0, y: 0, k: 1 },
-            graphOffset: { left: 0, top: 0, width: 0 },
+            graphOffset: { left: 0, top: 0, width: 0, height: 0 },
         };
     },
     computed: {
@@ -400,7 +407,7 @@ export default {
             hide_modal(); // hide other modals created in utilities also...
         },
         async onRefactor(response) {
-            await fromSimple(this, response.workflow);
+            await fromSimple(response.workflow);
             this._loadEditorData(response.workflow);
         },
         onUpdate(step) {
@@ -461,10 +468,11 @@ export default {
         onInsertWorkflow(workflow_id, workflow_name) {
             this._insertStep(workflow_id, workflow_name, "subworkflow");
         },
-        copyIntoWorkflow(id = null) {
+        copyIntoWorkflow(id) {
             // Load workflow definition
             this.onWorkflowMessage("Importing workflow", "progress");
-            loadWorkflow({ workflow: this, id, appendData: true }).then((data) => {
+            loadWorkflow({ id }).then((data) => {
+                fromSimple(data, true, defaultPosition(this.graphOffset, this.transform));
                 // Determine if any parameters were 'upgraded' and provide message
                 const insertedStateMessages = getStateUpgradeMessages(data);
                 this.onInsertedStateMessages(insertedStateMessages);
@@ -636,6 +644,7 @@ export default {
                 name: name,
                 content_id: contentId,
                 type: type,
+                outputs: [],
                 position: defaultPosition(this.graphOffset, this.transform),
                 post_job_actions: {},
             };
@@ -652,6 +661,16 @@ export default {
             });
         },
         async _loadEditorData(data) {
+            if (data.name !== undefined) {
+                this.name = data.name;
+            }
+            if (data.annotation !== undefined) {
+                this.annotation = data.annotation;
+            }
+            if (data.version !== undefined) {
+                this.version = data.version;
+            }
+
             const report = data.report || {};
             const markdown = report.markdown || reportDefault;
             this.markdownText = markdown;
@@ -671,8 +690,9 @@ export default {
             this.resetStores();
             this.onWorkflowMessage("Loading workflow...", "progress");
             this.lastQueue
-                .enqueue(loadWorkflow, { id, version, workflow: this })
+                .enqueue(loadWorkflow, { id, version })
                 .then((data) => {
+                    fromSimple(data);
                     this._loadEditorData(data);
                 })
                 .catch((response) => {

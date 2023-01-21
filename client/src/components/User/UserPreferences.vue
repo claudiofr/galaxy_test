@@ -83,6 +83,11 @@
                 @click="makeDataPrivate" />
         </ConfigProvider>
         <ConfigProvider v-slot="{ config }">
+            <UserBeaconSettings v-if="config && config.enable_beacon_integration" :user-id="userId"
+                >>
+            </UserBeaconSettings>
+        </ConfigProvider>
+        <ConfigProvider v-slot="{ config }">
             <UserDeletion
                 v-if="config && !config.single_user && config.enable_account_interface"
                 :email="email"
@@ -104,7 +109,7 @@ import Vue from "vue";
 import BootstrapVue from "bootstrap-vue";
 import ThemeSelector from "./ThemeSelector.vue";
 import { getGalaxyInstance } from "app";
-import { safePath } from "utils/redirect";
+import { withPrefix } from "utils/redirect";
 import _l from "utils/localization";
 import axios from "axios";
 import QueryStringParsing from "utils/query-string-parsing";
@@ -115,6 +120,7 @@ import UserDeletion from "./UserDeletion";
 import UserPreferencesElement from "./UserPreferencesElement";
 
 import "@fortawesome/fontawesome-svg-core";
+import UserBeaconSettings from "./UserBeaconSettings";
 
 Vue.use(BootstrapVue);
 
@@ -124,6 +130,7 @@ export default {
         UserDeletion,
         UserPreferencesElement,
         ThemeSelector,
+        UserBeaconSettings,
     },
     props: {
         userId: {
@@ -167,7 +174,7 @@ export default {
             this.message = message;
             this.messageVariant = status;
         }
-        axios.get(safePath(`/api/users/${this.userId}`)).then((response) => {
+        axios.get(withPrefix(`/api/users/${this.userId}`)).then((response) => {
             this.email = response.data.email;
             this.diskUsage = response.data.nice_total_disk_usage;
             this.diskQuota = response.data.quota;
@@ -205,10 +212,10 @@ export default {
                     )
                 )
             ) {
-                axios.post(safePath(`/history/make_private?all_histories=true`)).then((response) => {
+                axios.post(withPrefix(`/history/make_private?all_histories=true`)).then((response) => {
                     Galaxy.modal.show({
                         title: _l("Datasets are now private"),
-                        body: `All of your histories and datsets have been made private.  If you'd like to make all *future* histories private please use the <a href="${safePath(
+                        body: `All of your histories and datsets have been made private.  If you'd like to make all *future* histories private please use the <a href="${withPrefix(
                             "/user/permissions"
                         )}">User Permissions</a> interface.`,
                         buttons: {
