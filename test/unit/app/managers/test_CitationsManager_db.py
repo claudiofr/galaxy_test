@@ -1,9 +1,6 @@
-import os.path
-import tempfile
 import pytest
 
 from galaxy.managers.citations import DoiCache
-from galaxy.util.bunch import Bunch
 from galaxy import config
 
 @pytest.fixture()
