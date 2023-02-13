@@ -11,8 +11,8 @@
         @move="onMoveTo"
         @pan-by="onPanBy">
         <div class="node-header unselectable clearfix" @click="makeActive" @keyup.enter="makeActive">
-            <loading-span v-if="isLoading" message="Loading details" />
             <b-button-group class="float-right">
+                <loading-span v-if="isLoading" spinner-only />
                 <b-button
                     v-if="canClone"
                     v-b-tooltip.hover
@@ -77,7 +77,7 @@
                 :input="input"
                 :step-id="id"
                 :datatypes-mapper="datatypesMapper"
-                :step-position="step.position"
+                :step-position="step.position ?? { top: 0, left: 0 }"
                 :root-offset="rootOffset"
                 :scroll="scroll"
                 :scale="scale"
@@ -92,7 +92,7 @@
                 :post-job-actions="postJobActions"
                 :step-id="id"
                 :step-type="step.type"
-                :step-position="step.position"
+                :step-position="step.position ?? { top: 0, left: 0 }"
                 :root-offset="rootOffset"
                 :scroll="scroll"
                 :scale="scale"
@@ -176,7 +176,12 @@ const connectionStore = useConnectionStore();
 const stateStore = useWorkflowStateStore();
 const stepStore = useWorkflowStepStore();
 const isLoading = computed(() => Boolean(stateStore.getStepLoadingState(props.id)?.loading));
-useNodePosition(el, props.id, stateStore);
+useNodePosition(
+    el,
+    props.id,
+    stateStore,
+    computed(() => props.scale)
+);
 const title = computed(() => props.step.label || props.step.name);
 const idString = computed(() => `wf-node-step-${props.id}`);
 const showRule = computed(() => props.step.inputs?.length > 0 && props.step.outputs?.length > 0);

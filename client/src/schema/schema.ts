@@ -520,7 +520,7 @@ export interface paths {
     };
     "/api/histories/{history_id}/contents/{id}": {
         /**
-         * Return detailed information about an HDA within a history.
+         * Return detailed information about an HDA within a history. ``/api/histories/{history_id}/contents/{type}s/{id}`` should be used instead.
          * @deprecated
          * @description Return detailed information about an `HDA` or `HDCA` within a history.
          *
@@ -528,7 +528,7 @@ export interface paths {
          */
         get: operations["history_content_api_histories__history_id__contents__id__get"];
         /**
-         * Updates the values for the history content item with the given ``ID``.
+         * Updates the values for the history content item with the given ``ID``. ``/api/histories/{history_id}/contents/{type}s/{id}`` should be used instead.
          * @deprecated
          * @description Updates the values for the history content item with the given ``ID``.
          */
@@ -5067,12 +5067,6 @@ export interface components {
             metadata: components["schemas"]["LibraryFolderMetadata"];
         };
         /**
-         * LibraryFolderContentsIndexSortByEnum
-         * @description An enumeration.
-         * @enum {string}
-         */
-        LibraryFolderContentsIndexSortByEnum: "name" | "description" | "type" | "size" | "update_time";
-        /**
          * LibraryFolderCurrentPermissions
          * @description Base model definition with common configuration used by all derived models.
          */
@@ -7349,12 +7343,6 @@ export interface components {
             };
         };
         /**
-         * WorkflowSortByEnum
-         * @description An enumeration.
-         * @enum {string}
-         */
-        WorkflowSortByEnum: "create_time" | "update_time" | "name" | "None";
-        /**
          * WriteInvocationStoreToPayload
          * @description Base model definition with common configuration used by all derived models.
          */
@@ -8655,7 +8643,7 @@ export interface operations {
                 offset?: number;
                 search_text?: string;
                 include_deleted?: boolean;
-                order_by?: components["schemas"]["LibraryFolderContentsIndexSortByEnum"];
+                order_by?: "name" | "description" | "type" | "size" | "update_time";
                 sort_desc?: boolean;
             };
             /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
@@ -10617,7 +10605,7 @@ export interface operations {
     };
     history_content_api_histories__history_id__contents__id__get: {
         /**
-         * Return detailed information about an HDA within a history.
+         * Return detailed information about an HDA within a history. ``/api/histories/{history_id}/contents/{type}s/{id}`` should be used instead.
          * @deprecated
          * @description Return detailed information about an `HDA` or `HDCA` within a history.
          *
@@ -10670,7 +10658,7 @@ export interface operations {
     };
     update_api_histories__history_id__contents__id__put: {
         /**
-         * Updates the values for the history content item with the given ``ID``.
+         * Updates the values for the history content item with the given ``ID``. ``/api/histories/{history_id}/contents/{type}s/{id}`` should be used instead.
          * @deprecated
          * @description Updates the values for the history content item with the given ``ID``.
          */
@@ -14324,7 +14312,7 @@ export interface operations {
                 missing_tools?: boolean;
                 show_published?: boolean;
                 show_shared?: boolean;
-                sort_by?: components["schemas"]["WorkflowSortByEnum"];
+                sort_by?: "create_time" | "update_time" | "name";
                 sort_desc?: boolean;
                 limit?: number;
                 offset?: number;
