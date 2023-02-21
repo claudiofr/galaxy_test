@@ -1,4 +1,4 @@
-beaker==1.11.0 ; python_version >= "3.7" and python_version < "3.12"
-sqlalchemy==1.4.46 ; python_version >= "3.7" and python_version < "3.12"
+beaker
+sqlalchemy
 pytest
 pytest-mock
