@@ -425,13 +425,13 @@ class ToolBox(AbstractToolBox):
         id = "builtin_converters"
         section = ToolSection({"name": "Built-in Converters", "id": id})
         self._tool_panel[id] = section
-        converters = self.app.datatypes_registry.datatype_converters
-        for source, targets in converters.items():
-            for target, tool in targets.items():
-                tool.name = f"{source}-to-{target}"
-                tool.description = "converter"
-                tool.hidden = False
-                section.elems.append_tool(tool)
+
+        converters = {
+            tool for target in self.app.datatypes_registry.datatype_converters.values() for tool in target.values()
+        }
+        for tool in converters:
+            tool.hidden = False
+            section.elems.append_tool(tool)
 
     def persist_cache(self, register_postfork=False):
         """
@@ -3578,7 +3578,7 @@ class SortTool(DatabaseOperationTool):
         sorttype = incoming["sort_type"]["sort_type"]
         new_elements = {}
         elements = hdca.collection.elements
-        presort_elements = []
+        presort_elements = None
         if sorttype == "alpha":
             presort_elements = [(dce.element_identifier, dce) for dce in elements]
         elif sorttype == "numeric":
@@ -3603,7 +3603,7 @@ class SortTool(DatabaseOperationTool):
         else:
             raise Exception(f"Unknown sort_type '{sorttype}'")
 
-        if presort_elements:
+        if presort_elements is not None:
             sorted_elements = [x[1] for x in sorted(presort_elements, key=lambda x: x[0])]
 
         for dce in sorted_elements:
