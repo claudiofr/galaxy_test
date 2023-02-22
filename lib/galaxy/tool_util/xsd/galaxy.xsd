@@ -59,6 +59,11 @@ List of behavior changes associated with profile versions:
 
 - Do not strip leading and trailing whitespaces in `from_work_dir` attribute.
 
+### 23.0
+
+- Text parameters that are inferred to be optional (i.e the `optional` tag is not set, but the tool parameter accepts an empty string)
+  are set to `None` for templating in Cheetah. Older tools receive the empty string `""` as the templated value.
+
 ### Examples
 
 A normal tool:
@@ -2070,6 +2075,7 @@ module.
       <xs:group ref="TestAssertionsTabular" minOccurs="0" maxOccurs="unbounded"/>
       <xs:group ref="TestAssertionsArchive" minOccurs="0" maxOccurs="unbounded"/>
       <xs:group ref="TestAssertionsXml" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:group ref="TestAssertionsJson" minOccurs="0" maxOccurs="unbounded"/>
       <xs:group ref="TestAssertionsH5" minOccurs="0" maxOccurs="unbounded"/>
     </xs:choice>
   </xs:complexType>
@@ -2124,6 +2130,15 @@ module.
       <xs:element name="attribute_matches" type="AssertAttributeMatches"/>
       <xs:element name="attribute_is" type="AssertAttributeIs"/>
       <xs:element name="element_text" type="AssertElementText"/>
+    </xs:choice>
+  </xs:group>
+  <xs:group name="TestAssertionsJson">
+    <xs:annotation>
+      <xs:documentation xml:lang="en"><![CDATA[Assertions for JSON data]]></xs:documentation>
+    </xs:annotation>
+    <xs:choice>
+      <xs:element name="has_json_property_with_value" type="AssertHasJsonPropertyWithValue"/>
+      <xs:element name="has_json_property_with_text" type="AssertHasJsonPropertyWithText"/>
     </xs:choice>
   </xs:group>
   <xs:group name="TestAssertionsH5">
@@ -2356,6 +2371,7 @@ $attribute_list::5
       <xs:group ref="TestAssertionsGeneral" minOccurs="0" maxOccurs="unbounded"/>
       <xs:group ref="TestAssertionsText" minOccurs="0" maxOccurs="unbounded"/>
       <xs:group ref="TestAssertionsTabular" minOccurs="0" maxOccurs="unbounded"/>
+      <xs:group ref="TestAssertionsJson" minOccurs="0" maxOccurs="unbounded"/>
       <xs:group ref="TestAssertionsXml" minOccurs="0" maxOccurs="unbounded"/>
       <xs:group ref="TestAssertionsH5" minOccurs="0" maxOccurs="unbounded"/>
     </xs:sequence>
@@ -2607,6 +2623,46 @@ $attribute_list::5
     <xs:attributeGroup ref="AssertAttributePath"/>
     <xs:attributeGroup ref="AssertAttributeNegate"/>
   </xs:complexType>
+  <xs:complexType name="AssertHasJsonPropertyWithValue">
+    <xs:annotation>
+      <xs:documentation xml:lang="en"><![CDATA[
+Asserts the JSON document contains a property or key with the specified JSON value.
+
+```xml
+<has_json_property_with_value property="skipped_columns" value="[1, 3, 5]" />
+```
+
+$attribute_list::5
+]]>
+      </xs:documentation>
+    </xs:annotation>
+    <xs:attributeGroup ref="AssertAttributeProperty"/>
+    <xs:attribute name="value" type="xs:string" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">JSON-ified value to search for. This will be converted from an XML string to JSON with Python's json.loads function.</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
+  <xs:complexType name="AssertHasJsonPropertyWithText">
+    <xs:annotation>
+      <xs:documentation xml:lang="en"><![CDATA[
+Asserts the JSON document contains a property or key with the specified text (i.e. string) value.
+
+```xml
+<has_json_property_with_text property="color" text="red" />
+```
+
+$attribute_list::5
+]]>
+      </xs:documentation>
+    </xs:annotation>
+    <xs:attributeGroup ref="AssertAttributeProperty"/>
+    <xs:attribute name="text" type="xs:string" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">Text value to search for.</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:complexType>
   <xs:complexType name="AssertHasH5Keys">
     <xs:annotation>
       <xs:documentation xml:lang="en"><![CDATA[
@@ -2655,6 +2711,14 @@ $attribute_list::5
     <xs:attribute name="path" type="xs:string" use="required">
       <xs:annotation>
         <xs:documentation xml:lang="en">Path to check for. Valid paths are the simplified subsets of XPath implemented by lxml.etree; https://lxml.de/xpathxslt.html for more information.</xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
+  </xs:attributeGroup>
+
+  <xs:attributeGroup name="AssertAttributeProperty">
+    <xs:attribute name="property" type="xs:string" use="required">
+      <xs:annotation>
+        <xs:documentation xml:lang="en">JSON property to search the target for.</xs:documentation>
       </xs:annotation>
     </xs:attribute>
   </xs:attributeGroup>
@@ -3274,7 +3338,7 @@ $attribute_list:data_ref,dynamic_options,display,multiple:5
 
 This parameter type is used to select columns from a parameter.
 
-$attribute_list:force_select,numerical,use_header_name:5
+$attribute_list:force_select,numerical,use_header_name,multiple:5
 
 #### ``drill_down``
 
@@ -3284,7 +3348,7 @@ all leaf nodes in the subtree are used.
 
 See [drill_down.xml](https://github.com/galaxyproject/galaxy/blob/dev/test/functional/tools/drill_down.xml)
 
-$attribute_list:hierarchy:5
+$attribute_list:hierarchy,multiple:5
 
 #### ``data_collection``
 
@@ -3485,7 +3549,11 @@ or ``select``.
         </xs:attribute>
         <xs:attribute name="accept_default" type="PermissiveBoolean">
           <xs:annotation>
-            <xs:documentation xml:lang="en"></xs:documentation>
+            <xs:documentation xml:lang="en"><![CDATA[
+Deprecated. Take the value given by ``default_value`` (or ``value``) and ``1``
+if no ``value`` is given. Applies to ``data_column`` and ``group_tag``
+parameters.
+            ]]></xs:documentation>
           </xs:annotation>
         </xs:attribute>
         <xs:attribute name="refresh_on_change" type="PermissiveBoolean">
@@ -3995,14 +4063,17 @@ dataset for the contained input of the type specified using the ``type`` tag.
   <xs:complexType name="ParamOptions">
     <xs:annotation>
       <xs:documentation xml:lang="en"><![CDATA[
-
 See [/tools/extract/liftOver_wrapper.xml](https://github.com/galaxyproject/galaxy/blob/master/tools/extract/liftOver_wrapper.xml)
 for an example of how to use this tag set. This tag set is optionally contained
 within the ``<param>`` tag when the ``type`` attribute value is ``select`` or
-``data`` and used to dynamically generated lists of options. This tag set
-dynamically creates a list of options whose values can be
-obtained from a predefined file stored locally or a dataset selected from the
-current history.
+``data`` and used to dynamically generated lists of options.
+
+For data parameters this tag can be used to restrict possible input datasets to datasets that match the ``dbkey`` of another data input by including a ``data_meta`` filter. See for
+instance here: [/tools/maf/interval2maf.xml](https://github.com/galaxyproject/galaxy/blob/master/tools/maf/interval2maf.xml)
+
+For select parameters this tag set dynamically creates a list of options whose
+values can be obtained from a predefined file stored locally or a dataset
+selected from the current history.
 
 There are at least five basic ways to use this tag - four of these correspond to
 a ``from_XXX`` attribute on the ``options`` directive and the other is to
@@ -5681,22 +5752,30 @@ Source of the tabular data ``from_data_table``, ``from_param``, or ``from_file``
     </xs:attribute>
     <xs:attribute name="name" type="xs:string">
       <xs:annotation>
-        <xs:documentation xml:lang="en"></xs:documentation>
+        <xs:documentation xml:lang="en"><![CDATA[
+Name of the referred data table, parameter, or file (required).
+        ]]></xs:documentation>
       </xs:annotation>
     </xs:attribute>
     <xs:attribute name="column" type="xs:integer">
       <xs:annotation>
-        <xs:documentation xml:lang="en"></xs:documentation>
+        <xs:documentation xml:lang="en"><![CDATA[
+The column to choose the value from (required)
+        ]]></xs:documentation>
       </xs:annotation>
     </xs:attribute>
     <xs:attribute name="offset" type="xs:integer">
       <xs:annotation>
-        <xs:documentation xml:lang="en"></xs:documentation>
+        <xs:documentation xml:lang="en"><![CDATA[
+The row (of the options) to choose the value from (by default -1, ie. last row)
+        ]]></xs:documentation>
       </xs:annotation>
     </xs:attribute>
     <xs:attribute name="param_attribute" type="xs:string">
       <xs:annotation>
-        <xs:documentation xml:lang="en"></xs:documentation>
+        <xs:documentation xml:lang="en"><![CDATA[
+Applies to ``from_param``. The attribute of the parameter to use.
+        ]]></xs:documentation>
       </xs:annotation>
     </xs:attribute>
   </xs:complexType>
@@ -5735,7 +5814,7 @@ of this directive.
       ]]></xs:documentation>
     </xs:annotation>
     <xs:sequence>
-      <xs:element name="action" type="Action" minOccurs="1" maxOccurs="unbounded"/>
+      <xs:group ref="ActionsElement" minOccurs="1" maxOccurs="unbounded"/>
     </xs:sequence>
     <xs:attribute name="value" type="xs:string" use="optional">
       <xs:annotation>
@@ -5860,6 +5939,13 @@ Applies to ``param_value``, ``boolean``</xs:documentation>
         ]]></xs:documentation>
       </xs:annotation>
     </xs:attribute>
+    <xs:attribute name="iterate" type="PermissiveBoolean">
+      <xs:annotation>
+        <xs:documentation xml:lang="en"><![CDATA[
+Applies to ``insert_column``. Default is ``False``</xs:documentation>
+        ]]></xs:documentation>
+      </xs:annotation>
+    </xs:attribute>
     <xs:attribute name="param_attribute" type="xs:string">
       <xs:annotation>
         <xs:documentation xml:lang="en">
@@ -5872,9 +5958,9 @@ Applies to ``param_value``</xs:documentation>
         <xs:documentation xml:lang="en">Applies to ``multiple_splitter``</xs:documentation>
       </xs:annotation>
     </xs:attribute>
-    <xs:attribute name="strip" type="PermissiveBoolean">
+    <xs:attribute name="strip" type="xs:string">
       <xs:annotation>
-        <xs:documentation xml:lang="en">Applies to ``column_strip``</xs:documentation>
+        <xs:documentation xml:lang="en">Applies to ``column_strip``. The given string is removed from the start or end of the column.</xs:documentation>
       </xs:annotation>
     </xs:attribute>
     <xs:attribute name="old_column" type="xs:string">

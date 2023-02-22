@@ -39,7 +39,6 @@ from galaxy.web import (
     expose_api_anonymous_and_sessionless,
     expose_api_raw_anonymous_and_sessionless,
 )
-from galaxy.web.framework.decorators import expose_api_raw
 from galaxy.webapps.base.controller import UsesVisualizationMixin
 from galaxy.webapps.base.webapp import GalaxyWebTransaction
 from galaxy.webapps.galaxy.services.tools import ToolsService
@@ -62,12 +61,10 @@ SEARCH_RESERVED_TERMS_FAVORITES = ["#favs", "#favorites", "#favourites"]
 
 
 class FormDataApiRoute(APIContentTypeRoute):
-
     match_content_type = "multipart/form-data"
 
 
 class JsonApiRoute(APIContentTypeRoute):
-
     match_content_type = "application/json"
 
 
@@ -419,6 +416,7 @@ class ToolsController(BaseGalaxyAPIController, UsesVisualizationMixin):
         Return diagnostic information to help debug panel
         and dependency related problems.
         """
+
         # TODO: Move this into tool.
         def to_dict(x):
             return x.to_dict()
@@ -516,7 +514,7 @@ class ToolsController(BaseGalaxyAPIController, UsesVisualizationMixin):
         trans.response.headers["Content-Disposition"] = f'attachment; filename="{id}.tgz"'
         return download_file
 
-    @expose_api_raw
+    @expose_api_raw_anonymous_and_sessionless
     def raw_tool_source(self, trans: GalaxyWebTransaction, id, **kwds):
         """Returns tool source. ``language`` is included in the response header."""
         if not trans.app.config.enable_tool_source_display and not trans.user_is_admin:

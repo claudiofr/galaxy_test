@@ -921,7 +921,7 @@ galaxy:
 
   # bio.tools web service request related caching. The type of beaker
   # cache used.
-  #biotools_service_cache_type: ext:database
+  #biotools_service_cache_type: file
 
   # bio.tools web service request related caching. The data directory to
   # point beaker cache at.
@@ -956,7 +956,7 @@ galaxy:
   # from external sources such as https://doi.org/ by Galaxy - the
   # following parameters can be used to control the caching used to
   # store this information.
-  #citation_cache_type: ext:database
+  #citation_cache_type: file
 
   # Citation related caching.  Tool citations information maybe fetched
   # from external sources such as https://doi.org/ by Galaxy - the
@@ -994,7 +994,7 @@ galaxy:
   # Mulled resolution caching. Mulled resolution uses external APIs of
   # quay.io, these requests are caching using this and the following
   # parameters
-  #mulled_resolution_cache_type: ext:database
+  #mulled_resolution_cache_type: file
 
   # Data directory used by beaker for caching mulled resolution
   # requests.
@@ -1717,6 +1717,11 @@ galaxy:
   # Sentry. Possible values are DEBUG, INFO, WARNING, ERROR or CRITICAL.
   #sentry_event_level: ERROR
 
+  # Set to a number between 0 and 1. With this option set, every
+  # transaction created will have that percentage chance of being sent
+  # to Sentry. A value higher than 0 is required to analyze performance.
+  #sentry_traces_sample_rate: 0.0
+
   # Log to statsd Statsd is an external statistics aggregator
   # (https://github.com/etsy/statsd) Enabling the following options will
   # cause galaxy to log request timing and other statistics to the
@@ -2214,10 +2219,6 @@ galaxy:
   # invocation use job caching. This isn't a boolean so an option for
   # 'show-selection' can be added later.
   #simplified_workflow_run_ui_job_cache: 'off'
-
-  # The URL to the myExperiment instance being used (omit scheme but
-  # include port).
-  #myexperiment_target_url: www.myexperiment.org:80
 
   # Enable Galaxy's "Upload via FTP" interface.  You'll need to install
   # and configure an FTP server (we've used ProFTPd since it can use

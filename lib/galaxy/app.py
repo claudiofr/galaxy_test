@@ -202,6 +202,7 @@ class SentryClientMixin:
                     self.config.sentry_dsn,
                     release=f"{self.config.version_major}.{self.config.version_minor}",
                     integrations=[sentry_logging],
+                    traces_sample_rate=self.config.sentry_traces_sample_rate,
                 )
 
             self.application_stack.register_postfork_function(postfork_sentry_client)
@@ -330,6 +331,8 @@ class MinimalGalaxyApplication(BasicSharedApp, HaltableContainer, SentryClientMi
             mulled_resolution_cache = CacheManager(**parse_cache_config_options(cache_opts)).get_cache(
                 "mulled_resolution"
             )
+            # If using database cache clear cache table contents
+            mulled_resolution_cache.clear()
         self.container_finder = containers.ContainerFinder(app_info, mulled_resolution_cache=mulled_resolution_cache)
         self._set_enabled_container_types()
         index_help = getattr(self.config, "index_tool_help", True)

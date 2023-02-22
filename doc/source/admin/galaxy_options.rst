@@ -1225,7 +1225,7 @@
 :Description:
     bio.tools web service request related caching. The type of beaker
     cache used.
-:Default: ``ext:database``
+:Default: ``file``
 :Type: str
 
 
@@ -1289,7 +1289,7 @@
     When biotools_service_cache_type = ext:database, this is
     the database table name used by beaker for
     bio.tools web service request related caching.
-:Default: ``biotools_service_beaker_cache``
+:Default: ``beaker_cache``
 :Type: str
 
 
@@ -1302,7 +1302,7 @@
     fetched from external sources such as https://doi.org/ by Galaxy -
     the following parameters can be used to control the caching used
     to store this information.
-:Default: ``ext:database``
+:Default: ``file``
 :Type: str
 
 
@@ -1369,7 +1369,7 @@
     When citation_cache_type = ext:database, this is
     the database table name used by beaker for
     citation related caching.
-:Default: ``citation_beaker_cache``
+:Default: ``beaker_cache``
 :Type: str
 
 
@@ -1381,7 +1381,7 @@
     Mulled resolution caching. Mulled resolution uses external APIs of
     quay.io, these requests are caching using this and the following
     parameters
-:Default: ``ext:database``
+:Default: ``file``
 :Type: str
 
 
@@ -1455,7 +1455,7 @@
     When mulled_resolution_cache_type = ext:database, this is
     the database table name used by beaker for
     caching mulled resolution requests. 
-:Default: ``mulled_resolution_beaker_cache``
+:Default: ``beaker_cache``
 :Type: str
 
 
@@ -3026,6 +3026,19 @@
 :Type: str
 
 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``sentry_traces_sample_rate``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:Description:
+    Set to a number between 0 and 1. With this option set, every
+    transaction created will have that percentage chance of being sent
+    to Sentry. A value higher than 0 is required to analyze
+    performance.
+:Default: ``0.0``
+:Type: float
+
+
 ~~~~~~~~~~~~~~~
 ``statsd_host``
 ~~~~~~~~~~~~~~~
@@ -4082,17 +4095,6 @@
     invocation use job caching. This isn't a boolean so an option for
     'show-selection' can be added later.
 :Default: ``off``
-:Type: str
-
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-``myexperiment_target_url``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-:Description:
-    The URL to the myExperiment instance being used (omit scheme but
-    include port).
-:Default: ``www.myexperiment.org:80``
 :Type: str
 
 
@@ -5188,14 +5190,15 @@
 :Type: str
 
 
-
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ``enable_beacon_integration``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 :Description:
-    Enables user preferences and api endpoint for the beacon integration.
+    Enables user preferences and api endpoint for the beacon
+    integration.
 :Default: ``false``
 :Type: bool
+
 
 
