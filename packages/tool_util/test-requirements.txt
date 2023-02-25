@@ -1,5 +1,6 @@
 beaker==1.11.0 ; python_version >= "3.7" and python_version < "3.12"
 dnspython
+h5py
 numpy
 pycryptodome
 pytest
