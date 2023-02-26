@@ -4,6 +4,7 @@ dnspython
 h5py
 numpy
 pycryptodome
+pylibmagic
 pysam>=0.20 ; python_version >= "3.7" and python_version < "3.12"
 pytest
 pytest-mock
