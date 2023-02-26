@@ -5,12 +5,12 @@ from beaker.cache import CacheManager
 from beaker.util import parse_cache_config_options
 
 import galaxy.config
-from galaxy.model.unittest_utils.beaker_testing_utils import is_cache_empty
-from galaxy.model.unittest_utils.migration_scripts_testing_utils import tmp_directory  # noqa: F401
-from galaxy.model.unittest_utils.model_testing_utils import (  # noqa: F401  (url_factory is a fixture we have to import explicitly)
-    create_and_drop_database,
-    url_factory,
-)
+# from galaxy.model.unittest_utils.beaker_testing_utils import is_cache_empty
+# from galaxy.model.unittest_utils.migration_scripts_testing_utils import tmp_directory  # noqa: F401
+# from galaxy.model.unittest_utils.model_testing_utils import (  # noqa: F401  (url_factory is a fixture we have to import explicitly)
+#     create_and_drop_database,
+#     url_factory,
+# )
 from galaxy.tool_util.deps.container_resolvers import ResolutionCache
 from galaxy.tool_util.deps.mulled.util import (
     _namespace_has_repo_name,
@@ -27,25 +27,41 @@ def appconfig():
     return galaxy.config.GalaxyAppConfiguration(override_tempdir=False)
 
 
+# @pytest.fixture()
+# def resolution_cache(url_factory, appconfig):  # noqa: F811
+#     db_url = url_factory()
+#     with create_and_drop_database(db_url):
+#         resolution_cache = ResolutionCache()
+#         cache_opts = {
+#             "cache.type": "ext:database",
+#             "cache.expire": "1",
+#             "cache.url": db_url,
+#             "cache.schema_name": appconfig.mulled_resolution_cache_schema_name,
+#             "cache.table_name": appconfig.mulled_resolution_cache_table_name,
+#         }
+#         cm = CacheManager(**parse_cache_config_options(cache_opts)).get_cache(cache_namespace)
+#         cm.clear()
+#         resolution_cache.mulled_resolution_cache = cm
+#         yield resolution_cache
+#         assert not is_cache_empty(db_url, cache_namespace)
+#         cm.clear()
+#         assert is_cache_empty(db_url, cache_namespace)
+
+
 @pytest.fixture()
-def resolution_cache(url_factory, appconfig):  # noqa: F811
-    db_url = url_factory()
-    with create_and_drop_database(db_url):
-        resolution_cache = ResolutionCache()
-        cache_opts = {
-            "cache.type": "ext:database",
-            "cache.expire": "1",
-            "cache.url": db_url,
-            "cache.schema_name": appconfig.mulled_resolution_cache_schema_name,
-            "cache.table_name": appconfig.mulled_resolution_cache_table_name,
-        }
-        cm = CacheManager(**parse_cache_config_options(cache_opts)).get_cache(cache_namespace)
-        cm.clear()
-        resolution_cache.mulled_resolution_cache = cm
-        yield resolution_cache
-        assert not is_cache_empty(db_url, cache_namespace)
-        cm.clear()
-        assert is_cache_empty(db_url, cache_namespace)
+def resolution_cache(tmpdir, appconfig):  # noqa: F811
+    resolution_cache = ResolutionCache()
+    cache_opts = {
+        "cache.type": "file",
+        "cache.data_dir": tmpdir,
+        "cache.expire": "1",
+        "cache.url": "sqlite://",
+        "cache.schema_name": appconfig.mulled_resolution_cache_schema_name,
+        "cache.table_name": appconfig.mulled_resolution_cache_table_name,
+    }
+    cm = CacheManager(**parse_cache_config_options(cache_opts)).get_cache(cache_namespace)
+    resolution_cache.mulled_resolution_cache = cm
+    return resolution_cache
 
 
 def test_resolution_cache_namepace_has_repo_name(resolution_cache):
