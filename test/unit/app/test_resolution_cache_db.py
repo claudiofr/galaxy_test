@@ -1,4 +1,3 @@
-import tempfile
 import time
 
 import pytest
@@ -21,12 +20,6 @@ from galaxy.tool_util.deps.mulled.util import (
 )
 
 cache_namespace = "mulled_resolution"
-
-
-@pytest.fixture()
-def tmp_directory():
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        yield tmp_dir
 
 
 @pytest.fixture(scope="module")
