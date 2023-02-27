@@ -6,8 +6,8 @@ from beaker.cache import CacheManager
 from beaker.util import parse_cache_config_options
 
 import galaxy.config
-# from galaxy.model.unittest_utils.beaker_testing_utils import is_cache_empty
-# from galaxy.model.unittest_utils.migration_scripts_testing_utils import tmp_directory  # noqa: F401
+from galaxy.model.unittest_utils.beaker_testing_utils import is_cache_empty
+from galaxy.model.unittest_utils.migration_scripts_testing_utils import tmp_directory  # noqa: F401
 from galaxy.model.unittest_utils.model_testing_utils import (  # noqa: F401  (url_factory is a fixture we have to import explicitly)
     create_and_drop_database,
     url_factory,
@@ -50,7 +50,7 @@ def resolution_cache(url_factory, appconfig):  # noqa: F811
         cm.clear()
         resolution_cache.mulled_resolution_cache = cm
         yield resolution_cache
-        # assert not is_cache_empty(db_url, cache_namespace)
+        assert not is_cache_empty(db_url, cache_namespace)
         cm.clear()
         # assert is_cache_empty(db_url, cache_namespace)
 
