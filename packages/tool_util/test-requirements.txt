@@ -1,15 +1,3 @@
 beaker==1.11.0 ; python_version >= "3.7" and python_version < "3.12"
-bx-python
-dnspython
-h5py
-mrcfile
-numpy
-pycryptodome
-pylibmagic
-pysam>=0.20 ; python_version >= "3.7" and python_version < "3.12"
 pytest
 pytest-mock
-python-magic
-social-auth-core[openidconnect]==4.0.3 ; python_version >= "3.7" and python_version < "3.12"
-sqlalchemy>=1.4.25,<2 ; python_version >= "3.7" and python_version < "3.12"
-tifffile
