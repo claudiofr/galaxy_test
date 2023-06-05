@@ -31,7 +31,7 @@ def mock_user_id_task(self, user: int):
     return user
 
 
-@lru_cache
+@lru_cache()
 def sqlite_url():
     path = tempfile.NamedTemporaryFile().name
     # dburl = _make_sqlite_db_url(tempfile.TemporaryDirectory().name,         database)
@@ -40,7 +40,7 @@ def sqlite_url():
     return dburl
 
 
-@lru_cache
+@lru_cache()
 def setup_users(dburl: str, num_users: int = 2):
     expected_user_ids = [i for i in range(2, num_users + 1)]
     with sqlalchemy_engine(dburl) as engine:
@@ -76,7 +76,7 @@ class TestCeleryUserRateLimitIntegration(IntegrationTestCase):
         results: dict[int, list[AsyncResult]] = {}
         for user in users:
             user_results: list[AsyncResult] = []
-            for i in range(num_calls):
+            for _i in range(num_calls):  # type: ignore
                 user_results.append(mock_user_id_task.delay(user=user))
             results[user] = user_results
         for user, user_results in results.items():
@@ -89,7 +89,7 @@ class TestCeleryUserRateLimitIntegration(IntegrationTestCase):
             f"before assert elapsed, expected lbound {expected_duration_lbound}, expected hbound {expected_duration_hbound}, elapsed {elapsed}"
         )
         assert elapsed >= expected_duration_lbound and elapsed <= expected_duration_hbound
-        for user, user_results in results.items():
+        for user_results in results.values():
             last_task_end_time = start_time
             for result in user_results:
                 logdebug(f"date_done: {result.date_done}")
