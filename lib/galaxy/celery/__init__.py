@@ -1,4 +1,5 @@
 import os
+import threading
 from functools import (
     lru_cache,
     wraps,
@@ -15,6 +16,7 @@ import pebble
 from celery import (
     Celery,
     shared_task,
+    Task,
 )
 from celery.signals import (
     worker_init,
@@ -22,6 +24,7 @@ from celery.signals import (
 )
 from kombu import serialization
 
+from galaxy.celery.base_task import GalaxyTaskBeforeStart
 from galaxy.config import Configuration
 from galaxy.main_config import find_config
 from galaxy.util import ExecutionTimer
@@ -65,6 +68,21 @@ class GalaxyCelery(Celery):
         if module.startswith("galaxy.celery.tasks"):
             module = f"galaxy{module[19:]}"
         return module
+
+
+class GalaxyTask(Task):
+
+    before_start_func: GalaxyTaskBeforeStart = None
+
+    def before_start(self, task_id, args, kwargs):
+        if not GalaxyTask.before_start_func:
+            lock = threading.Lock()
+            with lock:
+                if not GalaxyTask.before_start_func:
+                    app = get_galaxy_app()
+                    GalaxyTask.before_start_func = app[GalaxyTaskBeforeStart]
+
+        GalaxyTask.before_start_func(self, task_id, args, kwargs)
 
 
 def set_thread_app(app):
@@ -144,7 +162,7 @@ def galaxy_task(*args, action=None, **celery_task_kwd):
         celery_task_kwd["serializer"] = PYDANTIC_AWARE_SERIALIZER_NAME
 
     def decorate(func: Callable):
-        @shared_task(**celery_task_kwd)
+        @shared_task(base=GalaxyTask, **celery_task_kwd)
         @wraps(func)
         def wrapper(*args, **kwds):
             app = get_galaxy_app()
