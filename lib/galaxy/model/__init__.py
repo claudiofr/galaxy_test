@@ -10314,7 +10314,7 @@ class CeleryUserRateLimitPostgres(CeleryUserRateLimit):
         index_elements=["user_id"], set_=dict(last_scheduled_time=bindparam("sched_time"))
     )
 
-    def calculate_task_start_time(
+    def calculate_task_start_time(  # type: ignore
         self, user_id: int, sa_session: Session, task_interval_secs: float, now: datetime.datetime
     ) -> datetime.datetime:
         result = sa_session.execute(self._update_stmt, {"userid": user_id, "interval": task_interval_secs, "now": now})

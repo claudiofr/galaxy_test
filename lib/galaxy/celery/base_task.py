@@ -7,7 +7,7 @@ from galaxy.model.scoped_session import galaxy_scoped_session
 
 
 class GalaxyTaskBeforeStart:
-    def __call__(self, task: Task, task_id, *args, **kwargs):
+    def __call__(self, task: Task, task_id, args, kwargs):
         pass
 
 
