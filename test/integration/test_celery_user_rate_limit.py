@@ -1,7 +1,11 @@
 import datetime
 import tempfile
 from functools import lru_cache
-from typing import Iterable
+from typing import (
+    Dict,
+    Iterable,
+    List,
+)
 
 from celery.result import AsyncResult
 from sqlalchemy import text
@@ -74,9 +78,9 @@ class TestCeleryUserRateLimitIntegration(IntegrationTestCase):
         logdebug("start")
         start_time = datetime.datetime.utcnow()
         timer = ExecutionTimer()
-        results: dict[int, list[AsyncResult]] = {}
+        results: Dict[int, List[AsyncResult]] = {}
         for user in users:
-            user_results: list[AsyncResult] = []
+            user_results: List[AsyncResult] = []
             for _i in range(num_calls):  # type: ignore
                 user_results.append(mock_user_id_task.delay(user=user))
             results[user] = user_results
@@ -133,7 +137,6 @@ class TestCeleryUserRateLimitIntegrationPostgresNoLimit(TestCeleryUserRateLimitI
 
 
 class TestCeleryUserRateLimitIntegrationSqlite(TestCeleryUserRateLimitIntegration):
-
     dburl: str
 
     @classmethod
