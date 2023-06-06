@@ -72,7 +72,7 @@ class GalaxyCelery(Celery):
 
 class GalaxyTask(Task):
 
-    before_start_func: GalaxyTaskBeforeStart = None
+    before_start_func = None
 
     def before_start(self, task_id, args, kwargs):
         if not GalaxyTask.before_start_func:

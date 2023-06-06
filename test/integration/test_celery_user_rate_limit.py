@@ -62,9 +62,10 @@ class TestCeleryUserRateLimitIntegration(IntegrationTestCase):
         super().setUp()
 
     def _test_mock_pass_user_id_task(self, users: Iterable[int], num_calls: int, tasks_per_user_per_sec: float):
-        if tasks_per_user_per_sec == 0:
-            expected_duration = 0
-            expected_duration_lbound = 0
+        expected_duration: float
+        if tasks_per_user_per_sec == 0.0:
+            expected_duration = 0.0
+            expected_duration_lbound = 0.0
         else:
             secs_between_tasks_per_user = 1 / tasks_per_user_per_sec
             expected_duration = secs_between_tasks_per_user * (num_calls - 1)
