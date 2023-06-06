@@ -10240,9 +10240,9 @@ class CeleryUserRateLimit(Base):
     last_scheduled_time = Column(DateTime, nullable=False)
 
     def calculate_task_start_time(
-        self, sa_session: Session, task_interval_secs: float, now: datetime.datetime
+        self, user_id: int, sa_session: Session, task_interval_secs: float, now: datetime.datetime
     ) -> datetime.datetime:
-        pass
+        return now
 
     def __repr__(self):
         return (
