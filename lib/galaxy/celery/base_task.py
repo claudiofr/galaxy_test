@@ -12,7 +12,6 @@ class GalaxyTaskBeforeStart:
 
 
 class GalaxyTaskUserRateLimitBeforeStart(GalaxyTaskBeforeStart):
-
     user_rate_limit: CeleryUserRateLimit
 
     def __init__(
