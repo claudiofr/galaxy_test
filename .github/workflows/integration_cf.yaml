@@ -100,7 +100,7 @@ jobs:
       - name: Run tests
         run: |
           . .ci/minikube-test-setup/start_services.sh
-          ./run_tests.sh --coverage -integration test/integration/test_celery_user*.py -- --num-shards=4 --shard-id=${{ matrix.chunk }}
+          ./run_tests_cf.sh --coverage -integration test/integration/test_celery_user*.py -- --num-shards=4 --shard-id=${{ matrix.chunk }}
         working-directory: 'galaxy root'
       - uses: codecov/codecov-action@v3
         with:

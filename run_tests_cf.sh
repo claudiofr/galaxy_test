@@ -487,7 +487,7 @@ do
           ;;
       -i|-integration|--integration)
           GALAXY_TEST_TOOL_CONF="lib/galaxy/config/sample/tool_conf.xml.sample,test/functional/tools/sample_tool_conf.xml"
-          report_file="./run_integration_tests.html"
+          report_file="./run_integration_tests_cf.html"
           if [ $# -gt 1 ]; then
               integration_extra=$2
               shift 2
