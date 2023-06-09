@@ -71,17 +71,10 @@ class GalaxyCelery(Celery):
 
 
 class GalaxyTask(Task):
-    before_start_func = None
-
     def before_start(self, task_id, args, kwargs):
-        if not GalaxyTask.before_start_func:
-            lock = threading.Lock()
-            with lock:
-                if not GalaxyTask.before_start_func:
-                    app = get_galaxy_app()
-                    GalaxyTask.before_start_func = app[GalaxyTaskBeforeStart]
-
-        GalaxyTask.before_start_func(self, task_id, args, kwargs)
+        app = get_galaxy_app()
+        assert app
+        app[GalaxyTaskBeforeStart](self, task_id, args, kwargs)
 
 
 def set_thread_app(app):
