@@ -1,5 +1,4 @@
 import os
-import threading
 from functools import (
     lru_cache,
     wraps,
