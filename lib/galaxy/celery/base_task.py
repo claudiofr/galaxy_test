@@ -25,10 +25,9 @@ class GalaxyTaskUserRateLimitBeforeStart(GalaxyTaskBeforeStart):
         self.ga_scoped_session = ga_scoped_session
 
     def __call__(self, task: Task, task_id, args, kwargs):
-        print(f"before start task: {task.name}, taskid:{task_id} requestid:{task.request.id}")
         if task.request.retries > 0:
             return
-        usr = kwargs.get("user")
+        usr = kwargs.get("task_user_id")
         if not usr:
             return
         now = datetime.datetime.now()
