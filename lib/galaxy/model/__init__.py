@@ -6,7 +6,6 @@ the relationship cardinalities are obvious (e.g. prefer Dataset to Data)
 """
 import abc
 import base64
-import datetime
 import errno
 import json
 import logging
@@ -67,7 +66,6 @@ from sqlalchemy import (
     ForeignKey,
     func,
     Index,
-    insert,
     inspect,
     Integer,
     join,
@@ -90,7 +88,6 @@ from sqlalchemy import (
     update,
     VARCHAR,
 )
-from sqlalchemy.dialects.postgresql import insert as ps_insert
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext import hybrid
 from sqlalchemy.ext.associationproxy import association_proxy
@@ -105,7 +102,6 @@ from sqlalchemy.orm import (
     reconstructor,
     registry,
     relationship,
-    Session,
 )
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.orm.collections import attribute_mapped_collection
@@ -10305,93 +10301,11 @@ class CeleryUserRateLimit(Base):
     user_id = Column(Integer, ForeignKey("galaxy_user.id", ondelete="CASCADE"), primary_key=True)
     last_scheduled_time = Column(DateTime, nullable=False)
 
-    def calculate_task_start_time(
-        self, user_id: int, sa_session: Session, task_interval_secs: float, now: datetime.datetime
-    ) -> datetime.datetime:
-        return now
-
     def __repr__(self):
         return (
             f"CeleryUserRateLimit(id_type={self.id_type!r}, "
             f"id={self.id!r}, last_scheduled_time={self.last_scheduled_time!r})"
         )
-
-
-class CeleryUserRateLimitStandard(CeleryUserRateLimit):
-    """
-    Generic but slower implementation supported by most databases
-    """
-
-    _select_stmt = (
-        select(CeleryUserRateLimit.last_scheduled_time)
-        .with_for_update(of=CeleryUserRateLimit.last_scheduled_time)
-        .where(CeleryUserRateLimit.user_id == bindparam("userid"))
-    )
-
-    _update_stmt = (
-        update(CeleryUserRateLimit)
-        .where(CeleryUserRateLimit.user_id == bindparam("userid"))
-        .values(last_scheduled_time=bindparam("sched_time"))
-    )
-
-    _insert_stmt = insert(CeleryUserRateLimit).values(
-        user_id=bindparam("userid"), last_scheduled_time=bindparam("sched_time")
-    )
-
-    def calculate_task_start_time(
-        self, user_id: int, sa_session: Session, task_interval_secs: float, now: datetime.datetime
-    ) -> datetime.datetime:
-        last_scheduled_time = sa_session.scalars(self._select_stmt, {"userid": user_id}).first()
-        if last_scheduled_time:
-            sched_time = last_scheduled_time + datetime.timedelta(seconds=task_interval_secs)
-            if sched_time < now:
-                sched_time = now
-            sa_session.execute(self._update_stmt, {"userid": user_id, "sched_time": sched_time})
-            print(f"schedtime: {sched_time}")
-        else:
-            try:
-                sched_time = now
-                sa_session.execute(self._insert_stmt, {"userid": user_id, "sched_time": sched_time})
-            except Exception:
-                sched_time = now + datetime.timedelta(seconds=task_interval_secs)
-                sa_session.execute(self._update_stmt, {"userid": user_id, "sched_time": sched_time})
-        return sched_time
-
-
-class CeleryUserRateLimitPostgres(CeleryUserRateLimit):
-    """
-    Postgres specific implementation.
-    """
-
-    _update_stmt = (
-        update(CeleryUserRateLimit)
-        .where(CeleryUserRateLimit.user_id == bindparam("userid"))
-        .values(last_scheduled_time=text("greatest(last_scheduled_time + ':interval second', " ":now) "))
-        .returning(CeleryUserRateLimit.last_scheduled_time)
-    )
-
-    _insert_stmt = (
-        ps_insert(CeleryUserRateLimit)
-        .values(user_id=bindparam("userid"), last_scheduled_time=bindparam("now"))
-        .returning(CeleryUserRateLimit.last_scheduled_time)
-    )
-
-    _upsert_stmt = _insert_stmt.on_conflict_do_update(
-        index_elements=["user_id"], set_=dict(last_scheduled_time=bindparam("sched_time"))
-    )
-
-    def calculate_task_start_time(  # type: ignore
-        self, user_id: int, sa_session: Session, task_interval_secs: float, now: datetime.datetime
-    ) -> datetime.datetime:
-        result = sa_session.execute(self._update_stmt, {"userid": user_id, "interval": task_interval_secs, "now": now})
-        print(f"rows updated: {result.rowcount}")
-        if result.rowcount == 0:
-            sched_time = now + datetime.timedelta(seconds=task_interval_secs)
-            result = sa_session.execute(self._upsert_stmt, {"userid": user_id, "now": now, "sched_time": sched_time})
-            print(f"schedtime: {sched_time}")
-        for row in result:
-            print(f"x: {row[0]!r}")
-            return row[0]
 
 
 # The following models (HDA, LDDA) are mapped imperatively (for details see discussion in PR #12064)

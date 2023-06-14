@@ -30,7 +30,8 @@ from galaxy import (
 )
 from galaxy.celery.base_task import (
     GalaxyTaskBeforeStart,
-    GalaxyTaskUserRateLimitBeforeStart,
+    GalaxyTaskBeforeStartUserRateLimitPostgres,
+    GalaxyTaskBeforeStartUserRateLimitStandard,
 )
 from galaxy.config_watchers import ConfigWatchers
 from galaxy.datatypes.registry import Registry
@@ -60,8 +61,6 @@ from galaxy.managers.workflows import (
     WorkflowsManager,
 )
 from galaxy.model import (
-    CeleryUserRateLimitPostgres,
-    CeleryUserRateLimitStandard,
     custom_types,
     mapping,
 )
@@ -588,12 +587,12 @@ class GalaxyManagerApplication(MinimalManagerApp, MinimalGalaxyApplication):
         if self.config.celery_user_rate_limit:
             force_standard_before_start = self.config.get("celery_user_rate_limit_standard_before_start", False)
             if not force_standard_before_start and self.config.database_connection.startswith("postgres"):
-                task_before_start = GalaxyTaskUserRateLimitBeforeStart(
-                    self.config.celery_user_rate_limit, CeleryUserRateLimitPostgres(), self.model.session
+                task_before_start = GalaxyTaskBeforeStartUserRateLimitPostgres(
+                    self.config.celery_user_rate_limit, self.model.session
                 )
             else:
-                task_before_start = GalaxyTaskUserRateLimitBeforeStart(
-                    self.config.celery_user_rate_limit, CeleryUserRateLimitStandard(), self.model.session
+                task_before_start = GalaxyTaskBeforeStartUserRateLimitStandard(
+                    self.config.celery_user_rate_limit, self.model.session
                 )
             self._register_singleton(GalaxyTaskBeforeStart, task_before_start)
 
