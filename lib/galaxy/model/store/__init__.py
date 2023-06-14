@@ -55,6 +55,7 @@ from galaxy.files import (
     ProvidesUserFileSourcesUserContext,
 )
 from galaxy.files.uris import stream_url_to_file
+from galaxy.model.base import transaction
 from galaxy.model.mapping import GalaxyModelMapping
 from galaxy.model.metadata import MetadataCollection
 from galaxy.model.orm.util import (
@@ -197,6 +198,9 @@ class ImportOptions:
 class SessionlessContext:
     def __init__(self) -> None:
         self.objects: Dict[Type, Dict] = defaultdict(dict)
+
+    def commit(self) -> None:
+        pass
 
     def flush(self) -> None:
         pass
@@ -650,6 +654,8 @@ class ModelImportStore(metaclass=abc.ABCMeta):
                                         file_name=source,
                                         create=True,
                                     )
+                        # Don't trust serialized file size
+                        dataset_instance.dataset.file_size = None
                         dataset_instance.dataset.set_total_size()  # update the filesize record in the database
 
                     if dataset_instance.deleted:
@@ -754,7 +760,8 @@ class ModelImportStore(metaclass=abc.ABCMeta):
                     ld.library_dataset_dataset_association = ldda
                 self._session_add(ld)
 
-            self.sa_session.flush()
+            with transaction(self.sa_session):
+                self.sa_session.commit()
             return library_folder
 
         libraries_attrs = self.library_properties()
@@ -1266,7 +1273,8 @@ class ModelImportStore(metaclass=abc.ABCMeta):
         self.sa_session.add(obj)
 
     def _flush(self) -> None:
-        self.sa_session.flush()
+        with transaction(self.sa_session):
+            self.sa_session.commit()
 
 
 def _copied_from_object_key(
@@ -2448,7 +2456,7 @@ class WriteCrates:
                     "encodingFormat": encoding_format,
                 }
                 ro_crate.add_file(
-                    file_name,
+                    os.path.join(self.export_directory, file_name),
                     dest_path=file_name,
                     properties=properties,
                 )

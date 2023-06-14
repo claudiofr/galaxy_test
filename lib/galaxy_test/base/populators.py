@@ -98,6 +98,7 @@ from galaxy.tool_util.verify.wait import (
 from galaxy.util import (
     DEFAULT_SOCKET_TIMEOUT,
     galaxy_root_path,
+    UNKNOWN,
 )
 from galaxy.util.resources import resource_string
 from galaxy.util.unittest_utils import skip_if_site_down
@@ -417,6 +418,11 @@ class BaseDatasetPopulator(BasePopulator):
             self.wait_for_tool_run(history_id, run_response, assert_ok=kwds.get("assert_ok", True))
         return run_response
 
+    def new_bam_dataset(self, history_id: str, test_data_resolver):
+        return self.new_dataset(
+            history_id, content=open(test_data_resolver.get_filename("1.bam"), "rb"), file_type="bam", wait=True
+        )
+
     def fetch(
         self,
         payload: dict,
@@ -471,10 +477,11 @@ class BaseDatasetPopulator(BasePopulator):
         details = self.get_history_dataset_details(history_id, dataset=output)
         return details
 
-    def tag_dataset(self, history_id, hda_id, tags):
+    def tag_dataset(self, history_id, hda_id, tags, raise_on_error=True):
         url = f"histories/{history_id}/contents/{hda_id}"
         response = self._put(url, {"tags": tags}, json=True)
-        response.raise_for_status()
+        if raise_on_error:
+            response.raise_for_status()
         return response.json()
 
     def create_from_store_raw(self, payload: Dict[str, Any]) -> Response:
@@ -926,6 +933,19 @@ class BaseDatasetPopulator(BasePopulator):
         else:
             return display_response.content
 
+    def display_chunk(self, dataset_id: str, offset: int = 0, ck_size: Optional[int] = None) -> Dict[str, Any]:
+        # use the dataset display API endpoint with the offset parameter to enable chunking
+        # of the target dataset for certain datatypes
+        kwds = {
+            "offset": offset,
+        }
+        if ck_size is not None:
+            kwds["ck_size"] = ck_size
+        display_response = self._get(f"datasets/{dataset_id}/display", kwds)
+        api_asserts.assert_status_code_is(display_response, 200)
+        print(display_response.content)
+        return display_response.json()
+
     def get_history_dataset_source_transform_actions(self, history_id: str, **kwd) -> Set[str]:
         details = self.get_history_dataset_details(history_id, **kwd)
         if "sources" not in details:
@@ -1101,6 +1121,13 @@ class BaseDatasetPopulator(BasePopulator):
         update_response = self.galaxy_interactor.put("users/current", properties, json=True)
         return update_response
 
+    def total_disk_usage(self) -> float:
+        response = self._get("users/current")
+        response.raise_for_status()
+        user_object = response.json()
+        assert "total_disk_usage" in user_object
+        return user_object["total_disk_usage"]
+
     def create_role(self, user_ids: list, description: Optional[str] = None) -> dict:
         using_requirement("admin")
         payload = {
@@ -1169,7 +1196,7 @@ class BaseDatasetPopulator(BasePopulator):
         def validated():
             metadata = self.get_history_dataset_details(history_id, dataset_id=dataset_id)
             validated_state = metadata["validated_state"]
-            if validated_state == "unknown":
+            if validated_state == UNKNOWN:
                 return
             else:
                 return validated_state

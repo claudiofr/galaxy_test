@@ -592,10 +592,10 @@ class NavigatesGalaxy(HasDriver):
             "login": email,
             "password": password,
         }
-        form = self.wait_for_visible(self.navigation.login.selectors.form)
-        self.fill(form, login_info)
+        login = self.components.login
+        self.fill(login.form.wait_for_visible(), login_info)
         self.snapshot("logging-in")
-        self.wait_for_and_click(self.navigation.login.selectors.submit)
+        login.submit.wait_for_and_click()
         self.snapshot("login-submitted")
 
     def register(self, email=None, password=None, username=None, confirm=None, assert_valid=True):
@@ -610,10 +610,11 @@ class NavigatesGalaxy(HasDriver):
 
         self.home()
         self.components.masthead.register_or_login.wait_for_and_click()
-        self.wait_for_and_click(self.navigation.registration.selectors.toggle)
-        form = self.wait_for_visible(self.navigation.registration.selectors.form)
+        registration = self.components.registration
+        registration.toggle.wait_for_and_click()
+        form = registration.form.wait_for_visible()
         self.fill(form, dict(email=email, password=password, username=username, confirm=confirm))
-        self.wait_for_and_click(self.navigation.registration.selectors.submit)
+        registration.submit.wait_for_and_click()
         if assert_valid is False:
             self.assert_error_message()
         elif assert_valid:
@@ -689,7 +690,14 @@ class NavigatesGalaxy(HasDriver):
             self.upload_queue_local_file(test_path)
         else:
             assert paste_data is not None
-            self.upload_paste_data(paste_data)
+            if isinstance(paste_data, dict):
+                for name, value in paste_data.items():
+                    self.upload_paste_data(value)
+                    name_input = self.wait_for_selector("div#regular .upload-row:last-of-type .upload-title")
+                    name_input.clear()
+                    name_input.send_keys(name)
+            else:
+                self.upload_paste_data(paste_data)
 
         if ext is not None:
             self.wait_for_selector_visible(".upload-extension")
@@ -836,7 +844,7 @@ class NavigatesGalaxy(HasDriver):
         tab_locator = f"div#{tab_id}"
         self.wait_for_and_click_selector(f"{tab_locator} button#btn-new")
 
-        textarea = self.wait_for_selector(f"{tab_locator} .upload-text-content")
+        textarea = self.wait_for_selector(f"{tab_locator} .upload-row:last-of-type .upload-text-content")
         textarea.send_keys(pasted_content)
 
     def upload_rule_start(self):
@@ -1159,6 +1167,14 @@ class NavigatesGalaxy(HasDriver):
         self.libraries_index_search_for(name)
         self.libraries_index_table_elements()[0].find_element(By.CSS_SELECTOR, "td a").click()
 
+    def page_open_with_name(self, name, screenshot_name):
+        self.home()
+        self.navigate_to_pages()
+        self.click_grid_popup_option(name, "View")
+        if screenshot_name:
+            self.sleep_for(self.wait_types.UX_RENDER)
+            self.screenshot(screenshot_name)
+
     @retry_during_transitions
     def libraries_index_table_elements(self):
         container = self.components.libraries._.wait_for_visible()
@@ -1336,7 +1352,7 @@ class NavigatesGalaxy(HasDriver):
 
     def workflow_index_click_tag_display(self, workflow_index=0):
         workflow_row_element = self.workflow_index_table_row(workflow_index)
-        tag_display = workflow_row_element.find_element(By.CSS_SELECTOR, ".tags-display")
+        tag_display = workflow_row_element.find_element(By.CSS_SELECTOR, ".stateless-tags")
         tag_display.click()
 
     def workflow_index_add_tag(self, tag: str, workflow_index: int = 0):
@@ -1354,8 +1370,8 @@ class NavigatesGalaxy(HasDriver):
     @retry_during_transitions
     def workflow_index_tag_elements(self, workflow_index=0):
         workflow_row_element = self.workflow_index_table_row(workflow_index)
-        tag_display = workflow_row_element.find_element(By.CSS_SELECTOR, ".tags-display")
-        tag_spans = tag_display.find_elements(By.CSS_SELECTOR, ".tag-name")
+        tag_display = workflow_row_element.find_element(By.CSS_SELECTOR, ".stateless-tags")
+        tag_spans = tag_display.find_elements(By.CSS_SELECTOR, ".tag")
         return tag_spans
 
     @retry_during_transitions
@@ -1382,7 +1398,7 @@ class NavigatesGalaxy(HasDriver):
     def tagging_add(self, tags, auto_closes=True, parent_selector=""):
         for i, tag in enumerate(tags):
             if auto_closes or i == 0:
-                tag_area = f"{parent_selector}.tags-input input[type='text']"
+                tag_area = f"{parent_selector}.multiselect input[type='text']"
                 tag_area = self.wait_for_selector_clickable(tag_area)
                 tag_area.click()
 
@@ -1767,8 +1783,17 @@ class NavigatesGalaxy(HasDriver):
         return item_component.details.is_displayed
 
     def collection_builder_set_name(self, name):
-        name_element = self.wait_for_selector_visible("input.collection-name")
-        name_element.send_keys(name)
+        # small sleep here seems to be needed in the case of the
+        # collection builder even though we wait for the component
+        # to be clickable - which should make it enabled and should
+        # allow send_keys to work. The send_keys occasionally doesn't
+        # result in the name being filled out in the UI without this.
+        self.sleep_for(WAIT_TYPES.UX_RENDER)
+        self._wait_for_input_text_component_and_fill(self.components.collection_builders.name, name)
+
+    def _wait_for_input_text_component_and_fill(self, component, text):
+        target_element = component.wait_for_clickable()
+        target_element.send_keys(text)
 
     def collection_builder_hide_originals(self):
         self.wait_for_and_click_selector("input.hide-originals")
@@ -1906,6 +1931,10 @@ class NavigatesGalaxy(HasDriver):
 
     def assert_warning_message(self, contains=None):
         element = self.components._.messages["warning"]
+        return self.assert_message(element, contains=contains)
+
+    def assert_success_message(self, contains=None):
+        element = self.components._.messages["done"]
         return self.assert_message(element, contains=contains)
 
     def assert_message(self, element, contains=None):

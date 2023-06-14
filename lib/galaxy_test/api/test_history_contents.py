@@ -802,6 +802,45 @@ class TestHistoryContentsApi(ApiTestCase):
         collection = contents_response.json()[0]
         assert sorted(collection["elements_datatypes"]) == sorted(expected_datatypes)
 
+    @skip_without_tool("cat1")
+    def test_cannot_run_tools_on_immutable_histories(self, history_id):
+        create_response = self.dataset_collection_populator.create_pair_in_history(
+            history_id, contents=["123", "456"], wait=True
+        )
+        hdca_id = create_response.json()["outputs"][0]["id"]
+        inputs = {
+            "input1": {"batch": True, "values": [{"src": "hdca", "id": hdca_id}]},
+        }
+
+        # once we purge the history, it becomes immutable
+        self._delete(f"histories/{history_id}", data={"purge": True}, json=True)
+
+        with self.assertRaisesRegex(AssertionError, "History is immutable"):
+            self.dataset_populator.run_tool("cat1", inputs=inputs, history_id=history_id)
+
+    def test_cannot_update_dataset_collection_on_immutable_history(self, history_id):
+        hdca = self._create_pair_collection(history_id)
+
+        # once we purge the history, it becomes immutable
+        self._delete(f"histories/{history_id}", data={"purge": True}, json=True)
+
+        body = dict(name="newnameforpair")
+        update_response = self._put(
+            f"histories/{history_id}/contents/dataset_collections/{hdca['id']}", data=body, json=True
+        )
+        self._assert_status_code_is(update_response, 403)
+        assert update_response.json()["err_msg"] == "History is immutable"
+
+    def test_cannot_update_dataset_on_immutable_history(self, history_id):
+        hda1 = self._wait_for_new_hda(history_id)
+
+        # once we purge the history, it becomes immutable
+        self._delete(f"histories/{history_id}", data={"purge": True}, json=True)
+
+        update_response = self._update(history_id, hda1["id"], dict(name="Updated Name"))
+        self._assert_status_code_is(update_response, 403)
+        assert update_response.json()["err_msg"] == "History is immutable"
+
 
 class TestHistoryContentsApiBulkOperation(ApiTestCase):
     """
@@ -1128,13 +1167,14 @@ class TestHistoryContentsApiBulkOperation(ApiTestCase):
             _, collection_ids, history_contents = self._create_test_history_contents(history_id)
 
             history_contents = self._get_history_contents(history_id, query="?v=dev&keys=extension,data_type,metadata")
+            original_collection_update_times = []
             for item in history_contents:
                 if item["history_content_type"] == "dataset":
                     assert item["extension"] == "txt"
                     assert item["data_type"] == "galaxy.datatypes.data.Text"
                     assert "metadata_column_names" not in item
-
-            self.dataset_populator.wait_for_history_jobs(history_id)
+                if item["history_content_type"] == "dataset_collection":
+                    original_collection_update_times.append(item["update_time"])
 
             expected_datatype = "tabular"
             # Change datatype of all datasets
@@ -1154,11 +1194,16 @@ class TestHistoryContentsApiBulkOperation(ApiTestCase):
             self.dataset_populator.wait_for_history(history_id)
 
             history_contents = self._get_history_contents(history_id, query="?v=dev&keys=extension,data_type,metadata")
+            new_collection_update_times = []
             for item in history_contents:
                 if item["history_content_type"] == "dataset":
                     assert item["extension"] == "tabular"
                     assert item["data_type"] == "galaxy.datatypes.tabular.Tabular"
                     assert "metadata_column_names" in item
+                if item["history_content_type"] == "dataset_collection":
+                    new_collection_update_times.append(item["update_time"])
+
+            assert original_collection_update_times != new_collection_update_times
 
     def test_bulk_datatype_change_should_skip_set_metadata_on_deferred_data(self):
         with self.dataset_populator.test_history() as history_id:

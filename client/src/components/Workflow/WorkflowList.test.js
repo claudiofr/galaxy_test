@@ -1,5 +1,7 @@
 import Workflows from "../Workflow/WorkflowList";
 import { mount } from "@vue/test-utils";
+import { useUserTags } from "composables/user";
+import { computed } from "vue";
 import axios from "axios";
 import MockAdapter from "axios-mock-adapter";
 import { getLocalVue } from "tests/jest/helpers";
@@ -7,9 +9,17 @@ import flushPromises from "flush-promises";
 import { parseISO, formatDistanceToNow } from "date-fns";
 import { PiniaVuePlugin } from "pinia";
 import { createTestingPinia } from "@pinia/testing";
+import Tag from "../TagsMultiselect/Tag";
 
 const localVue = getLocalVue();
 localVue.use(PiniaVuePlugin);
+
+const autocompleteTags = ["#named_user_tags", "abc", "my_tag"];
+jest.mock("composables/user");
+useUserTags.mockReturnValue({
+    userTags: computed(() => autocompleteTags),
+    addLocalTag: jest.fn(),
+});
 
 jest.mock("app");
 
@@ -122,7 +132,7 @@ describe("WorkflowList.vue", () => {
             expect(columns.at(2).text()).toBe(
                 formatDistanceToNow(parseISO(`${mockWorkflowsData[0].update_time}Z`), { addSuffix: true })
             );
-            expect(row.find(".fa-globe").exists()).toBe(true);
+            expect(row.find(".sharing-indicator-published").exists()).toBe(true);
 
             // test expand summary button for longer annotations
             const annotationHead = sampleLongAnnotation.substr(0, 75);
@@ -152,7 +162,7 @@ describe("WorkflowList.vue", () => {
         });
 
         it("update filter when a tag is clicked", async () => {
-            const tags = wrapper.findAll("tbody > tr .tag-name").wrappers;
+            const tags = wrapper.findAllComponents(Tag).wrappers;
             expect(tags.length).toBe(2);
             tags[0].trigger("click");
             flushPromises();
@@ -160,7 +170,7 @@ describe("WorkflowList.vue", () => {
         });
 
         it("update filter when a tag is clicked only happens on first click", async () => {
-            const tags = wrapper.findAll("tbody > tr .tag-name").wrappers;
+            const tags = wrapper.findAllComponents(Tag).wrappers;
             expect(tags.length).toBe(2);
             tags[0].trigger("click");
             tags[0].trigger("click");
@@ -172,7 +182,7 @@ describe("WorkflowList.vue", () => {
         it("update filter when published icon is clicked", async () => {
             const rows = wrapper.findAll("tbody > tr").wrappers;
             const row = rows[0];
-            row.find(".fa-globe").trigger("click");
+            row.find(".sharing-indicator-published").trigger("click");
             flushPromises();
             expect(wrapper.vm.filter).toBe("is:published");
         });

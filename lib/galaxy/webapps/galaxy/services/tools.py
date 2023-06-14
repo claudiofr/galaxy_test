@@ -24,6 +24,7 @@ from galaxy.managers.context import (
 )
 from galaxy.managers.histories import HistoryManager
 from galaxy.model import PostJobAction
+from galaxy.model.base import transaction
 from galaxy.schema.fetch_data import (
     FetchDataFormPayload,
     FetchDataPayload,
@@ -133,7 +134,7 @@ class ToolsService(ServiceBase):
         history_id = payload.get("history_id")
         if history_id:
             history_id = trans.security.decode_id(history_id) if isinstance(history_id, str) else history_id
-            target_history = self.history_manager.get_owned(history_id, trans.user, current_history=trans.history)
+            target_history = self.history_manager.get_mutable(history_id, trans.user, current_history=trans.history)
         else:
             target_history = None
 
@@ -187,7 +188,8 @@ class ToolsService(ServiceBase):
                     new_pja_flush = True
 
         if new_pja_flush:
-            trans.sa_session.flush()
+            with transaction(trans.sa_session):
+                trans.sa_session.commit()
 
         return self._handle_inputs_output_to_api_response(trans, tool, target_history, vars)
 

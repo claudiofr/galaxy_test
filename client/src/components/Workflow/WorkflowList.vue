@@ -39,18 +39,18 @@
                     @toggleDetails="row.toggleDetails" />
             </template>
             <template v-slot:cell(tags)="row">
-                <Tags
-                    :index="row.index"
-                    :tags="row.item.tags"
+                <StatelessTags
+                    clickable
+                    :value="row.item.tags"
                     :disabled="row.item.deleted || published"
-                    @input="onTags"
+                    @input="(tags) => onTags(tags, row.index)"
                     @tag-click="onTagClick" />
             </template>
             <template v-slot:cell(published)="row">
                 <SharingIndicators
                     v-if="!row.item.deleted"
                     :object="row.item"
-                    @filter="(filter) => appendFilter(filter)" />
+                    @filter="(filter) => appendFilter(filter, true)" />
                 <div v-else>&#8212;</div>
             </template>
             <template v-slot:cell(show_in_tool_panel)="row">
@@ -90,7 +90,7 @@ import _l from "utils/localization";
 import { Services } from "./services";
 import { getAppRoot } from "onload/loadConfig";
 import { storedWorkflowsProvider } from "components/providers/StoredWorkflowsProvider";
-import Tags from "components/Common/Tags";
+import StatelessTags from "@/components/TagsMultiselect/StatelessTags.vue";
 import WorkflowDropdown from "./WorkflowDropdown";
 import UtcDate from "components/UtcDate";
 import { getGalaxyInstance } from "app";
@@ -127,11 +127,15 @@ const helpHtml = `<div>
         <dt><code>tag</code></dt>
         <dd>
             Shows workflows with the given workflow tag. You may also click
-            on a tag in your list of workflows to filter on that tag directly.
+            on a tag to filter on that tag directly.
         </dd>
         <dt><code>is:published</code></dt>
         <dd>
             Shows published workflows.
+        </dd>
+        <dt><code>is:importable</code></dt>
+        <dd>
+            Shows importable workflows (this also means they have URL generated).
         </dd>
         <dt><code>is:shared_with_me</code></dt>
         <dd>
@@ -161,7 +165,7 @@ const PUBLISHED_FIELDS = [NAME_FIELD, TAGS_FIELD, UPDATED_FIELD, OWNER_FIELD];
 export default {
     components: {
         UtcDate,
-        Tags,
+        StatelessTags,
         WorkflowDropdown,
         WorkflowBookmark,
         WorkflowIndexActions,
@@ -187,6 +191,11 @@ export default {
             type: Boolean,
             default: false,
         },
+        query: {
+            type: String,
+            required: false,
+            default: "",
+        },
     },
     data() {
         const fields = this.published ? PUBLISHED_FIELDS : PERSONAL_FIELDS;
@@ -205,7 +214,7 @@ export default {
     },
     computed: {
         dataProviderParameters() {
-            const extraParams = { search: this.effectiveFilter, skip_step_counts: true };
+            const extraParams = { search: this.normalizeTag(this.effectiveFilter), skip_step_counts: true };
             if (this.published) {
                 extraParams.show_published = true;
                 extraParams.show_shared = false;
@@ -224,6 +233,9 @@ export default {
     created() {
         this.root = getAppRoot();
         this.services = new Services();
+        if (this.query) {
+            this.filter = this.query;
+        }
     },
     methods: {
         decorateData(item) {
@@ -266,9 +278,10 @@ export default {
                 .catch((error) => {
                     this.onError(error);
                 });
+            this.$emit("input", workflow.tags);
         },
         onTagClick: function (tag) {
-            this.appendTagFilter("tag", tag.text);
+            this.appendTagFilter("tag", tag);
         },
         onAdd: function (workflow) {
             if (this.currentPage == 1) {
@@ -285,6 +298,9 @@ export default {
         },
         onRestore: function (id) {
             this.refresh();
+        },
+        normalizeTag: function (tag) {
+            return tag.replace(/(tag:')#/g, "$1name:");
         },
     },
 };

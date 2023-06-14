@@ -172,6 +172,8 @@ export interface paths {
     "/api/datasets/{history_content_id}/metadata_file": {
         /** Returns the metadata file associated with this history item. */
         get: operations["datasets__get_metadata_file"];
+        /** Check if metadata file can be downloaded. */
+        head: operations["get_metadata_file_datasets_api_datasets__history_content_id__metadata_file_head"];
     };
     "/api/datatypes": {
         /**
@@ -239,6 +241,20 @@ export interface paths {
          * response.
          */
         get: operations["types_and_mapping_api_datatypes_types_and_mapping_get"];
+    };
+    "/api/display_applications": {
+        /**
+         * Returns the list of display applications.
+         * @description Returns the list of display applications.
+         */
+        get: operations["display_applications_index_api_display_applications_get"];
+    };
+    "/api/display_applications/reload": {
+        /**
+         * Reloads the list of display applications.
+         * @description Reloads the list of display applications.
+         */
+        post: operations["display_applications_reload_api_display_applications_reload_post"];
     };
     "/api/drs_download/{object_id}": {
         /** Download */
@@ -2949,6 +2965,19 @@ export interface components {
              */
             links: components["schemas"]["Hyperlink"][];
         };
+        /** DisplayApplication */
+        DisplayApplication: {
+            /** Filename */
+            filename_: string;
+            /** Id */
+            id: string;
+            /** Links */
+            links: components["schemas"]["Link"][];
+            /** Name */
+            name: string;
+            /** Version */
+            version: string;
+        };
         /**
          * ElementsFromType
          * @description An enumeration.
@@ -4778,12 +4807,12 @@ export interface components {
              * Latest installed revision
              * @description Most recent version available on the tool shed
              */
-            latest_installable_revision: string;
+            latest_installable_revision?: string;
             /**
              * Repository deprecated
              * @description Repository has been depreciated on the tool shed
              */
-            repository_deprecated: string;
+            repository_deprecated?: string;
             /** Revision Update */
             revision_update: string;
             /** Revision Upgrade */
@@ -4803,7 +4832,7 @@ export interface components {
              * Changeset revision number
              * @description The linearized 0-based index of the changeset on the tool shed (0, 1, 2,...)
              */
-            ctx_rev: string;
+            ctx_rev?: string;
             /** Deleted */
             deleted: boolean;
             /** Dist To Shed */
@@ -5642,6 +5671,11 @@ export interface components {
              */
             url: string;
         };
+        /** Link */
+        Link: {
+            /** Name */
+            name: string;
+        };
         /**
          * MaterializeDatasetInstanceAPIRequest
          * @description Base model definition with common configuration used by all derived models.
@@ -6392,6 +6426,15 @@ export interface components {
          * @default []
          */
         QuotaSummaryList: components["schemas"]["QuotaSummary"][];
+        /** ReloadFeedback */
+        ReloadFeedback: {
+            /** Failed */
+            failed: string[];
+            /** Message */
+            message: string;
+            /** Reloaded */
+            reloaded: string[];
+        };
         /**
          * RemoteFilesDisableMode
          * @description An enumeration.
@@ -7244,13 +7287,39 @@ export interface components {
         };
         /**
          * UpdateHistoryContentsPayload
-         * @description Contains arbitrary property values that will be updated for a particular history item.
+         * @description Can contain arbitrary/dynamic fields that will be updated for a particular history item.
          * @example {
          *   "annotation": "Test",
          *   "visible": false
          * }
          */
-        UpdateHistoryContentsPayload: Record<string, never>;
+        UpdateHistoryContentsPayload: {
+            /**
+             * Annotation
+             * @description A user-defined annotation for this item.
+             */
+            annotation?: string;
+            /**
+             * Deleted
+             * @description Whether this item is marked as deleted.
+             */
+            deleted?: boolean;
+            /**
+             * Name
+             * @description The new name of the item.
+             */
+            name?: string;
+            /**
+             * Tags
+             * @description A list of tags to add to this item.
+             */
+            tags?: components["schemas"]["TagCollection"];
+            /**
+             * Visible
+             * @description Whether this item is visible in the history.
+             */
+            visible?: boolean;
+        };
         /**
          * UpdateLibraryFolderPayload
          * @description Base model definition with common configuration used by all derived models.
@@ -8529,11 +8598,15 @@ export interface operations {
             /** @description If non-null, get the specified filename from the extra files for this dataset. */
             /** @description The file extension when downloading the display data. Use the value `data` to let the server infer it from the data type. */
             /** @description The query parameter 'raw' should be considered experimental and may be dropped at some point in the future without warning. Generally, data should be processed by its datatype prior to display. */
+            /** @description Set this for datatypes that allow chunked display through the display_data method to enable chunking. This specifies a byte offset into the target dataset's display. */
+            /** @description If offset is set, this recommends 'how large' the next chunk should be. This is not respected or interpreted uniformly and should be interpreted as a very loose recommendation. Different datatypes interpret 'largeness' differently - for bam datasets this is a number of lines whereas for tabular datatypes this is interpreted as a number of bytes. */
             query?: {
                 preview?: boolean;
                 filename?: string;
                 to_ext?: string;
                 raw?: boolean;
+                offset?: number;
+                ck_size?: number;
             };
             /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
             header?: {
@@ -8565,11 +8638,15 @@ export interface operations {
             /** @description If non-null, get the specified filename from the extra files for this dataset. */
             /** @description The file extension when downloading the display data. Use the value `data` to let the server infer it from the data type. */
             /** @description The query parameter 'raw' should be considered experimental and may be dropped at some point in the future without warning. Generally, data should be processed by its datatype prior to display. */
+            /** @description Set this for datatypes that allow chunked display through the display_data method to enable chunking. This specifies a byte offset into the target dataset's display. */
+            /** @description If offset is set, this recommends 'how large' the next chunk should be. This is not respected or interpreted uniformly and should be interpreted as a very loose recommendation. Different datatypes interpret 'largeness' differently - for bam datasets this is a number of lines whereas for tabular datatypes this is interpreted as a number of bytes. */
             query?: {
                 preview?: boolean;
                 filename?: string;
                 to_ext?: string;
                 raw?: boolean;
+                offset?: number;
+                ck_size?: number;
             };
             /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
             header?: {
@@ -8614,6 +8691,37 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             200: never;
+            /** @description Validation Error */
+            422: {
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_metadata_file_datasets_api_datasets__history_content_id__metadata_file_head: {
+        /** Check if metadata file can be downloaded. */
+        parameters: {
+            /** @description The name of the metadata file to retrieve. */
+            query: {
+                metadata_file: string;
+            };
+            /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
+            header?: {
+                "run-as"?: string;
+            };
+            /** @description The encoded database identifier of the dataset. */
+            path: {
+                history_content_id: string;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
             /** @description Validation Error */
             422: {
                 content: {
@@ -8774,6 +8882,53 @@ export interface operations {
             200: {
                 content: {
                     "application/json": components["schemas"]["DatatypesCombinedMap"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    display_applications_index_api_display_applications_get: {
+        /**
+         * Returns the list of display applications.
+         * @description Returns the list of display applications.
+         */
+        responses: {
+            /** @description Successful Response */
+            200: {
+                content: {
+                    "application/json": components["schemas"]["DisplayApplication"][];
+                };
+            };
+        };
+    };
+    display_applications_reload_api_display_applications_reload_post: {
+        /**
+         * Reloads the list of display applications.
+         * @description Reloads the list of display applications.
+         */
+        parameters?: {
+            /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
+            header?: {
+                "run-as"?: string;
+            };
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: string[] | undefined;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                content: {
+                    "application/json": components["schemas"]["ReloadFeedback"];
                 };
             };
             /** @description Validation Error */
@@ -10672,11 +10827,15 @@ export interface operations {
             /** @description If non-null, get the specified filename from the extra files for this dataset. */
             /** @description The file extension when downloading the display data. Use the value `data` to let the server infer it from the data type. */
             /** @description The query parameter 'raw' should be considered experimental and may be dropped at some point in the future without warning. Generally, data should be processed by its datatype prior to display. */
+            /** @description Set this for datatypes that allow chunked display through the display_data method to enable chunking. This specifies a byte offset into the target dataset's display. */
+            /** @description If offset is set, this recommends 'how large' the next chunk should be. This is not respected or interpreted uniformly and should be interpreted as a very loose recommendation. Different datatypes interpret 'largeness' differently - for bam datasets this is a number of lines whereas for tabular datatypes this is interpreted as a number of bytes. */
             query?: {
                 preview?: boolean;
                 filename?: string;
                 to_ext?: string;
                 raw?: boolean;
+                offset?: number;
+                ck_size?: number;
             };
             /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
             header?: {
@@ -10710,11 +10869,15 @@ export interface operations {
             /** @description If non-null, get the specified filename from the extra files for this dataset. */
             /** @description The file extension when downloading the display data. Use the value `data` to let the server infer it from the data type. */
             /** @description The query parameter 'raw' should be considered experimental and may be dropped at some point in the future without warning. Generally, data should be processed by its datatype prior to display. */
+            /** @description Set this for datatypes that allow chunked display through the display_data method to enable chunking. This specifies a byte offset into the target dataset's display. */
+            /** @description If offset is set, this recommends 'how large' the next chunk should be. This is not respected or interpreted uniformly and should be interpreted as a very loose recommendation. Different datatypes interpret 'largeness' differently - for bam datasets this is a number of lines whereas for tabular datatypes this is interpreted as a number of bytes. */
             query?: {
                 preview?: boolean;
                 filename?: string;
                 to_ext?: string;
                 raw?: boolean;
+                offset?: number;
+                ck_size?: number;
             };
             /** @description The user ID that will be used to effectively make this API call. Only admins and designated users can make API calls on behalf of other users. */
             header?: {

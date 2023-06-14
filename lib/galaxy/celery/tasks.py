@@ -33,8 +33,10 @@ from galaxy.managers.markdown_util import generate_branded_pdf
 from galaxy.managers.model_stores import ModelStoreManager
 from galaxy.managers.tool_data import ToolDataImportManager
 from galaxy.metadata.set_metadata import set_metadata_portable
+from galaxy.model.base import transaction
 from galaxy.model.scoped_session import galaxy_scoped_session
 from galaxy.objectstore import BaseObjectStore
+from galaxy.objectstore.caching import check_caches
 from galaxy.schema.tasks import (
     ComputeDatasetHashTaskRequest,
     GenerateHistoryContentDownload,
@@ -137,8 +139,19 @@ def change_datatype(
         path = dataset_instance.dataset.file_name
         datatype = sniff.guess_ext(path, datatypes_registry.sniff_order)
     datatypes_registry.change_datatype(dataset_instance, datatype)
-    sa_session.flush()
+    with transaction(sa_session):
+        sa_session.commit()
     set_metadata(hda_manager, ldda_manager, sa_session, dataset_id, model_class)
+
+
+@galaxy_task(action="touch update_time of object")
+def touch(sa_session: galaxy_scoped_session, item_id: int, model_class: str = "HistoryDatasetCollectionAssociation"):
+    if model_class != "HistoryDatasetCollectionAssociation":
+        raise NotImplementedError(f"touch method not implemented for '{model_class}'")
+    item = sa_session.query(model.HistoryDatasetCollectionAssociation).filter_by(id=item_id).one()
+    item.touch()
+    with transaction(sa_session):
+        sa_session.commit()
 
 
 @galaxy_task(action="set dataset association metadata")
@@ -165,7 +178,8 @@ def set_metadata(
     except Exception as e:
         log.info(f"Setting metadata failed on {model_class} {dataset_instance.id}: {str(e)}")
         dataset_instance.dataset.state = dataset_instance.dataset.states.FAILED_METADATA
-    sa_session.flush()
+    with transaction(sa_session):
+        sa_session.commit()
 
 
 def _get_dataset_manager(
@@ -397,3 +411,8 @@ def prune_history_audit_table(sa_session: galaxy_scoped_session):
 def cleanup_short_term_storage(storage_monitor: ShortTermStorageMonitor):
     """Cleanup short term storage."""
     storage_monitor.cleanup()
+
+
+@galaxy_task(action="prune object store cache directories")
+def clean_object_store_caches(object_store: BaseObjectStore):
+    check_caches(object_store.cache_targets())

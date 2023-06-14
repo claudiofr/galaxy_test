@@ -12,7 +12,7 @@ from typing import (
     Union,
 )
 
-from celery import group
+from celery import chain
 from pydantic import (
     Extra,
     Field,
@@ -28,6 +28,7 @@ from galaxy.celery.tasks import (
     materialize as materialize_task,
     prepare_dataset_collection_download,
     prepare_history_content_download,
+    touch,
     write_history_content_to,
 )
 from galaxy.managers import (
@@ -60,6 +61,7 @@ from galaxy.model import (
     LibraryDataset,
     User,
 )
+from galaxy.model.base import transaction
 from galaxy.model.security import GalaxyRBACAgent
 from galaxy.objectstore import BaseObjectStore
 from galaxy.schema import (
@@ -509,7 +511,7 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         ..note:
             Currently, a user can only copy an HDA from a history that the user owns.
         """
-        history = self.history_manager.get_owned(history_id, trans.user, current_history=trans.history)
+        history = self.history_manager.get_mutable(history_id, trans.user, current_history=trans.history)
 
         serialization_params.default_view = "detailed"
         history_content_type = payload.type
@@ -530,7 +532,7 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         payload: CreateHistoryContentFromStore,
         serialization_params: SerializationParams,
     ) -> List[AnyHistoryContentItem]:
-        history = self.history_manager.get_owned(history_id, trans.user, current_history=trans.history)
+        history = self.history_manager.get_mutable(history_id, trans.user, current_history=trans.history)
         object_tracker = self.create_objects_from_store(
             trans,
             payload,
@@ -557,7 +559,7 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         request: MaterializeDatasetInstanceRequest,
     ) -> AsyncTaskResultSummary:
         # DO THIS JUST TO MAKE SURE IT IS OWNED...
-        self.history_manager.get_owned(request.history_id, trans.user, current_history=trans.history)
+        self.history_manager.get_mutable(request.history_id, trans.user, current_history=trans.history)
         assert trans.app.config.enable_celery_tasks
         task_request = MaterializeDatasetInstanceTaskRequest(
             history_id=request.history_id,
@@ -592,6 +594,7 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         payload_dict = payload.dict(by_alias=True)
         hda = self.hda_manager.get_owned(history_content_id, trans.user, current_history=trans.history, trans=trans)
         assert hda is not None
+        self.history_manager.error_unless_mutable(hda.history)
         self.hda_manager.update_permissions(trans, hda, **payload_dict)
         roles = self.hda_manager.serialize_dataset_association_roles(trans, hda)
         return DatasetAssociationRoles.construct(**roles)
@@ -616,8 +619,9 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         :returns:   an error object if an error occurred or a dictionary containing
                     any values that were different from the original and, therefore, updated
         """
+        history = self.history_manager.get_mutable(history_id, trans.user, current_history=trans.history)
         if contents_type == HistoryContentType.dataset:
-            return self.__update_dataset(trans, history_id, id, payload, serialization_params)
+            return self.__update_dataset(trans, history, id, payload, serialization_params)
         elif contents_type == HistoryContentType.dataset_collection:
             return self.__update_dataset_collection(trans, id, payload)
         else:
@@ -644,7 +648,7 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         :returns:   an error object if an error occurred or a dictionary containing
                     any values that were different from the original and, therefore, updated
         """
-        history = self.history_manager.get_owned(history_id, trans.user, current_history=trans.history)
+        history = self.history_manager.get_mutable(history_id, trans.user, current_history=trans.history)
         items = payload.items
         hda_ids: List[DecodedDatabaseIdField] = []
         hdca_ids: List[DecodedDatabaseIdField] = []
@@ -676,7 +680,7 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         filter_query_params: ValueFilterQueryParams,
         payload: HistoryContentBulkOperationPayload,
     ) -> HistoryContentBulkOperationResult:
-        history = self.history_manager.get_owned(history_id, trans.user, current_history=trans.history)
+        history = self.history_manager.get_mutable(history_id, trans.user, current_history=trans.history)
         filters = self.history_contents_filters.parse_query_filters(filter_query_params)
         self._validate_bulk_operation_params(payload, trans.user, trans)
         contents: List[HistoryItemModel]
@@ -692,7 +696,8 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
                 filters,
             )
         errors = self._apply_bulk_operation(contents, payload.operation, payload.params, trans)
-        trans.sa_session.flush()
+        with transaction(trans.sa_session):
+            trans.sa_session.commit()
         success_count = len(contents) - len(errors)
         return HistoryContentBulkOperationResult.construct(success_count=success_count, errors=errors)
 
@@ -709,7 +714,7 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         :returns:   TODO
         """
         decoded_id = history_content_id
-        history = self.history_manager.get_owned(history_id, trans.user, current_history=trans.history)
+        history = self.history_manager.get_mutable(history_id, trans.user, current_history=trans.history)
         hda = self.hda_manager.get_owned_ids([decoded_id], history=history)[0]
         if hda:
             self.hda_manager.set_metadata(trans, hda, overwrite=True, validate=True)
@@ -850,6 +855,7 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         self, trans, id: DecodedDatabaseIdField, purge: bool, stop_job: bool, serialization_params: SerializationParams
     ):
         hda = self.hda_manager.get_owned(id, trans.user, current_history=trans.history)
+        self.history_manager.error_unless_mutable(hda.history)
         self.hda_manager.error_if_uploading(hda)
 
         async_result = None
@@ -868,14 +874,13 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
     def __update_dataset(
         self,
         trans,
-        history_id: DecodedDatabaseIdField,
+        history: History,
         id: DecodedDatabaseIdField,
         payload: Dict[str, Any],
         serialization_params: SerializationParams,
     ):
         # anon user: ensure that history ids match up and the history is the current,
         #   check for uploading, and use only the subset of attribute keys manipulatable by anon users
-        history = self.history_manager.get_owned(history_id, trans.user, current_history=trans.history)
         hda = self.__datasets_for_update(trans, history, [id], payload)[0]
         if hda:
             self.__deserialize_dataset(trans, hda, payload)
@@ -1158,7 +1163,8 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
             message = f"Invalid 'source' parameter in request: {source}"
             raise exceptions.RequestParameterInvalidException(message)
 
-        trans.sa_session.flush()
+        with transaction(trans.sa_session):
+            trans.sa_session.commit()
         return rval
 
     def __create_dataset(
@@ -1184,7 +1190,8 @@ class HistoriesContentsService(ServiceBase, ServesExportStores, ConsumesModelSto
         if hda is None:
             return None
 
-        trans.sa_session.flush()
+        with transaction(trans.sa_session):
+            trans.sa_session.commit()
         return self.hda_serializer.serialize_to_view(hda, user=trans.user, trans=trans, **serialization_params.dict())
 
     def __create_hda_from_ldda(self, trans, history: History, ldda_id: int):
@@ -1432,7 +1439,8 @@ class HistoryItemOperator:
     ):
         if isinstance(item, HistoryDatasetAssociation):
             wrapped_task = self._change_item_datatype(item, params, trans)
-            trans.sa_session.flush()
+            with transaction(trans.sa_session):
+                trans.sa_session.commit()
             if wrapped_task:
                 wrapped_task.delay()
 
@@ -1442,8 +1450,10 @@ class HistoryItemOperator:
                 wrapped_task = self._change_item_datatype(dataset_instance, params, trans)
                 if wrapped_task:
                     wrapped_tasks.append(wrapped_task)
-            trans.sa_session.flush()
-            group(wrapped_tasks).delay()
+            with transaction(trans.sa_session):
+                trans.sa_session.commit()
+            # chain these for sequential execution. chord would be nice, but requires a non-RPC backend.
+            chain(*wrapped_tasks, touch.si(item_id=item.id, model_class="HistoryDatasetCollectionAssociation")).delay()
 
     def _change_item_datatype(
         self, item: HistoryDatasetAssociation, params: ChangeDatatypeOperationParams, trans: ProvidesHistoryContext

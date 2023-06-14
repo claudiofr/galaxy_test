@@ -34,6 +34,7 @@ from galaxy.jobs import (
     TaskWrapper,
 )
 from galaxy.jobs.mapper import JobNotReadyException
+from galaxy.model.base import transaction
 from galaxy.structured_app import MinimalManagerApp
 from galaxy.util import unicodify
 from galaxy.util.custom_logging import get_logger
@@ -429,7 +430,10 @@ class JobHandlerQueue(BaseJobHandlerQueue):
                 )
                 .subquery()
             )
-            rank = func.rank().over(partition_by=model.Job.table.c.user_id, order_by=model.Job.table.c.id).label("rank")
+            coalesce_exp = func.coalesce(
+                model.Job.table.c.user_id, model.Job.table.c.session_id
+            )  # accommodate jobs by anonymous users
+            rank = func.rank().over(partition_by=coalesce_exp, order_by=model.Job.table.c.id).label("rank")
             job_filter_conditions = (
                 (model.Job.state == model.Job.states.NEW),
                 (model.Job.handler == self.app.config.server_name),
@@ -567,8 +571,10 @@ class JobHandlerQueue(BaseJobHandlerQueue):
         # Remove cached wrappers for any jobs that are no longer being tracked
         for id in set(self.job_wrappers.keys()) - set(new_waiting_jobs):
             del self.job_wrappers[id]
-        # Flush, if we updated the state
-        self.sa_session.flush()
+        # Commit updated state
+        with transaction(self.sa_session):
+            self.sa_session.commit()
+
         # Done with the session
         self.sa_session.remove()
 

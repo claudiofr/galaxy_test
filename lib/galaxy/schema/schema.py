@@ -981,7 +981,33 @@ class HistoryContentBulkOperationResult(Model):
 
 
 class UpdateHistoryContentsPayload(HistoryBase):
-    """Contains arbitrary property values that will be updated for a particular history item."""
+    """Can contain arbitrary/dynamic fields that will be updated for a particular history item."""
+
+    name: Optional[str] = Field(
+        None,
+        title="Name",
+        description="The new name of the item.",
+    )
+    deleted: Optional[bool] = Field(
+        None,
+        title="Deleted",
+        description="Whether this item is marked as deleted.",
+    )
+    visible: Optional[bool] = Field(
+        None,
+        title="Visible",
+        description="Whether this item is visible in the history.",
+    )
+    annotation: Optional[str] = Field(
+        None,
+        title="Annotation",
+        description="A user-defined annotation for this item.",
+    )
+    tags: Optional[TagCollection] = Field(
+        None,
+        title="Tags",
+        description="A list of tags to add to this item.",
+    )
 
     class Config:
         schema_extra = {
@@ -2376,13 +2402,14 @@ class ToolShedRepositoryChangeset(ToolShedRepository):
 
 
 class InstalledRepositoryToolShedStatus(Model):
-    # See https://github.com/galaxyproject/galaxy/issues/10453
-    latest_installable_revision: str = Field(
+    # See https://github.com/galaxyproject/galaxy/issues/10453 , bad booleans
+    # See https://github.com/galaxyproject/galaxy/issues/16135 , optional fields
+    latest_installable_revision: Optional[str] = Field(
         title="Latest installed revision", description="Most recent version available on the tool shed"
     )
     revision_update: str
     revision_upgrade: Optional[str]
-    repository_deprecated: str = Field(
+    repository_deprecated: Optional[str] = Field(
         title="Repository deprecated", description="Repository has been depreciated on the tool shed"
     )
 
@@ -2399,7 +2426,7 @@ class InstalledToolShedRepository(Model):
     owner: str = Field(title="Owner", description="Owner of repository")
     deleted: bool
     # This should be an int... but it would break backward compatiblity. Probably switch it at some point anyway?
-    ctx_rev: str = Field(
+    ctx_rev: Optional[str] = Field(
         title="Changeset revision number",
         description="The linearized 0-based index of the changeset on the tool shed (0, 1, 2,...)",
     )

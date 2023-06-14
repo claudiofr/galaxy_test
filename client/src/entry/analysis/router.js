@@ -17,8 +17,9 @@ import LibraryRoutes from "entry/analysis/routes/library-routes";
 import StorageDashboardRoutes from "entry/analysis/routes/storageDashboardRoutes";
 
 // child components
-import Citations from "components/Citation/Citations";
 import AboutGalaxy from "components/AboutGalaxy.vue";
+import CarbonEmissionsCalculations from "components/JobMetrics/CarbonEmissions/CarbonEmissionsCalculations";
+import Citations from "components/Citation/Citations";
 import ClientError from "components/ClientError";
 import CollectionEditView from "components/Collections/common/CollectionEditView";
 import CustomBuilds from "components/User/CustomBuilds";
@@ -34,6 +35,7 @@ import HistoryImport from "components/HistoryImport";
 import HistoryView from "components/History/HistoryView";
 import HistoryPublished from "components/History/HistoryPublished";
 import HistoryPublishedList from "components/History/HistoryPublishedList";
+import HistoryInvocations from "components/Workflow/HistoryInvocations";
 import HistoryMultipleView from "components/History/Multiple/MultipleView";
 import InteractiveTools from "components/InteractiveTools/InteractiveTools";
 import InvocationReport from "components/Workflow/InvocationReport";
@@ -154,6 +156,10 @@ export function getRouter(Galaxy) {
                         component: AboutGalaxy,
                     },
                     {
+                        path: "carbon_emissions_calculations",
+                        component: CarbonEmissionsCalculations,
+                    },
+                    {
                         path: "custom_builds",
                         component: CustomBuilds,
                         redirect: redirectAnon(),
@@ -174,6 +180,7 @@ export function getRouter(Galaxy) {
                     },
                     {
                         path: "datasets/:datasetId/details",
+                        name: "DatasetDetails",
                         component: DatasetDetails,
                         props: true,
                     },
@@ -264,6 +271,11 @@ export function getRouter(Galaxy) {
                         get component() {
                             return Galaxy.config.enable_celery_tasks ? HistoryExportTasks : HistoryExport;
                         },
+                        props: true,
+                    },
+                    {
+                        path: "histories/:historyId/invocations",
+                        component: HistoryInvocations,
                         props: true,
                     },
                     {
@@ -461,6 +473,7 @@ export function getRouter(Galaxy) {
                         props: (route) => ({
                             importMessage: route.query["message"],
                             importStatus: route.query["status"],
+                            query: route.query["query"],
                         }),
                     },
                     {

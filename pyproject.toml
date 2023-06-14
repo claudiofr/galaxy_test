@@ -116,18 +116,19 @@ s3fs = "^2023.1.0"
 
 [tool.poetry.group.dev.dependencies]
 ase = ">=3.18.1"
+axe-selenium-python = "*"
 black = "*"
 codespell = "*"
 cwltest = "*"
 darker = "*"
 fluent-logger = "*"
+galaxy-release-util = "*"
 httpx = "*"
 isort = "*"
 lxml = "!=4.2.2"
 markdown-it-reporter = "*"
 myst-parser = "*"
 pkce = "*"
-PyGithub = "*"
 pytest = "*"
 pytest-asyncio = "*"
 pytest-celery = "*"
@@ -159,6 +160,9 @@ target-version = "py37"
 # E402 module level import not at top of file # TODO, we would like to improve this.
 # E501 is line length (delegated to black)
 ignore = ["B008", "B9", "E402", "E501"]
+exclude = [
+  "lib/tool_shed/test/test_data/repos"
+]
 
 [tool.ruff.isort]
 # We are not selecting "I" rules in ruff yet because support for all the isort
@@ -170,6 +174,6 @@ relative-imports-order = "closest-to-furthest"
 # Don't check pyupgrade rules on tool scripts, which may use different Python versions
 "test/functional/tools/*" = ["UP"]
 "tools/*" = ["UP"]
-
-[tool.ruff.pyupgrade]
-keep-runtime-typing = true  # https://github.com/charliermarsh/ruff/issues/1617
+# Don't check some pyupgrade rules on generated files
+"lib/galaxy/schema/bco/*" = ["UP006", "UP007"]
+"lib/galaxy/schema/drs/*" = ["UP006", "UP007"]

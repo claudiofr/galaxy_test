@@ -25,6 +25,7 @@ from requests import (
 )
 
 from galaxy.exceptions import error_codes
+from galaxy.util import UNKNOWN
 from galaxy_test.base import rules_test_data
 from galaxy_test.base.populators import (
     DatasetCollectionPopulator,
@@ -1570,14 +1571,14 @@ test_data:
                 wait=True,
             )
             history_contents = self.dataset_populator._get_contents_request(history_id=history_id).json()
-            first_input = history_contents[1]
-            assert first_input["history_content_type"] == "dataset"
+            input_collection = self.dataset_populator.get_history_collection_details(history_id, hid=1, assert_ok=False)
+            first_input = input_collection["elements"][0]
             paused_dataset = history_contents[-1]
             failed_dataset = self.dataset_populator.get_history_dataset_details(history_id, hid=5, assert_ok=False)
             assert paused_dataset["state"] == "paused", paused_dataset
             assert failed_dataset["state"] == "error", failed_dataset
             inputs = {
-                "input1": {"values": [{"src": "hda", "id": first_input["id"]}]},
+                "input1": {"values": [{"src": "dce", "id": first_input["id"]}]},
                 "failbool": "false",
                 "rerun_remap_job_id": failed_dataset["creating_job"],
             }
@@ -5224,8 +5225,49 @@ steps:
         $link: fasta_input
     outputs:
       out_file1:
-        # Wish it was qualified for conditionals but it doesn't seem to be. -John
-        # rename: "#{fastq_input.fastq_input1 | basename} suffix"
+        rename: "#{fastq_input.fastq_input1 | basename} suffix"
+""",
+                test_data="""
+fasta_input:
+  value: 1.fasta
+  type: File
+  name: fasta1
+  file_type: fasta
+fastq_input:
+  value: 1.fastqsanger
+  type: File
+  name: fastq1
+  file_type: fastqsanger
+""",
+                history_id=history_id,
+            )
+            content = self.dataset_populator.get_history_dataset_details(history_id, wait=True, assert_ok=True)
+            name = content["name"]
+            assert name == "fastq1 suffix", name
+
+    @skip_without_tool("mapper2")
+    def test_run_rename_based_on_input_conditional_legacy_pja_reference(self):
+        with self.dataset_populator.test_history() as history_id:
+            self._run_jobs(
+                """
+class: GalaxyWorkflow
+inputs:
+  fasta_input: data
+  fastq_input: data
+steps:
+  mapping:
+    tool_id: mapper2
+    state:
+      fastq_input:
+        fastq_input_selector: single
+        fastq_input1:
+          $link: fastq_input
+      reference:
+        $link: fasta_input
+    outputs:
+      out_file1:
+        # The fully prefixed variant test in "test_run_rename_based_on_input_conditional" should be preferred,
+        # but we don't want to break old workflow renaming actions
         rename: "#{fastq_input1 | basename} suffix"
 """,
                 test_data="""
@@ -5267,9 +5309,7 @@ steps:
         $link: fasta_input
     outputs:
       out_file1:
-        # Wish it was qualified for conditionals but it doesn't seem to be. -John
-        # rename: "#{fastq_input.fastq_input1 | basename} suffix"
-        rename: "#{fastq_input1} suffix"
+        rename: "#{fastq_input.fastq_input1 | basename} suffix"
 """,
                 test_data="""
 fasta_input:
@@ -5701,7 +5741,7 @@ steps:
                 history_id=history_id,
             )
             hda2 = self.dataset_populator.get_history_dataset_details(history_id, hid=2)
-            assert hda2["validated_state"] == "unknown"
+            assert hda2["validated_state"] == UNKNOWN
 
     @skip_without_tool("cat1")
     def test_validated_post_job_action_invalid(self):
@@ -6483,6 +6523,18 @@ input_c:
             self._assert_error_code_is(import_response, error_codes.error_codes_by_name["ADMIN_REQUIRED"])
         finally:
             shutil.rmtree(workflow_directory)
+
+    def test_cannot_run_workflow_on_immutable_history(self) -> None:
+        with self.dataset_populator.test_history() as history_id:
+            # once we purge the history, it becomes immutable
+            self._delete(f"histories/{history_id}", data={"purge": True}, json=True)
+
+            with self.assertRaisesRegex(AssertionError, "History is immutable"):
+                self.workflow_populator.run_workflow(
+                    WORKFLOW_INPUTS_AS_OUTPUTS,
+                    test_data={"input1": "hello world", "text_input": {"value": "A text variable", "type": "raw"}},
+                    history_id=history_id,
+                )
 
     def _invoke_paused_workflow(self, history_id):
         workflow = self.workflow_populator.load_workflow_from_resource("test_workflow_pause")

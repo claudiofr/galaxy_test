@@ -20,6 +20,7 @@ from galaxy.model import (
     WorkflowRequestInputParameter,
     WorkflowRequestStepState,
 )
+from galaxy.model.base import transaction
 from galaxy.tools.parameters.meta import expand_workflow_inputs
 from galaxy.workflow.resources import get_resource_mapper_function
 
@@ -253,7 +254,7 @@ def _get_target_history(
             history_name = history_param
     if history_id:
         history_manager = trans.app.history_manager
-        target_history = history_manager.get_owned(
+        target_history = history_manager.get_mutable(
             trans.security.decode_id(history_id), trans.user, current_history=trans.history
         )
     else:
@@ -271,7 +272,8 @@ def _get_target_history(
             nh_name = f"{nh_name} on {', '.join(ids[0:-1])} and {ids[-1]}"
         new_history = History(user=trans.user, name=nh_name)
         trans.sa_session.add(new_history)
-        trans.sa_session.flush()
+        with transaction(trans.sa_session):
+            trans.sa_session.commit()
         target_history = new_history
     return target_history
 

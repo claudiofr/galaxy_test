@@ -12,6 +12,7 @@ from galaxy import (
 )
 from galaxy.managers import histories
 from galaxy.managers.sharable import SlugBuilder
+from galaxy.model.base import transaction
 from galaxy.model.item_attrs import (
     UsesAnnotations,
     UsesItemRatings,
@@ -281,7 +282,8 @@ class HistoryController(BaseUIController, SharableMixin, UsesAnnotations, UsesIt
                 elif operation == "undelete":
                     status, message = self._list_undelete(trans, histories)
 
-                trans.sa_session.flush()
+                with transaction(trans.sa_session):
+                    trans.sa_session.commit()
         # Render the list view
         if message and status:
             kwargs["message"] = sanitize_text(message)
@@ -379,7 +381,8 @@ class HistoryController(BaseUIController, SharableMixin, UsesAnnotations, UsesIt
             association = None
         new_history.add_galaxy_session(galaxy_session, association=association)
         trans.sa_session.add(new_history)
-        trans.sa_session.flush()
+        with transaction(trans.sa_session):
+            trans.sa_session.commit()
         trans.set_history(new_history)
         # No message
         return None, None
@@ -408,7 +411,8 @@ class HistoryController(BaseUIController, SharableMixin, UsesAnnotations, UsesIt
                         .one()
                     )
                     trans.sa_session.delete(association)
-                    trans.sa_session.flush()
+                    with transaction(trans.sa_session):
+                        trans.sa_session.commit()
                 message = "Unshared %d shared histories" % len(ids)
                 status = "done"
         # Render the list view
@@ -473,7 +477,7 @@ class HistoryController(BaseUIController, SharableMixin, UsesAnnotations, UsesIt
         }
 
     @web.expose
-    def display_by_username_and_slug(self, trans, username, slug):
+    def display_by_username_and_slug(self, trans, username, slug, **kwargs):
         """
         Display history based on a username and slug.
         """
@@ -533,6 +537,7 @@ class HistoryController(BaseUIController, SharableMixin, UsesAnnotations, UsesIt
                 )
             return {"title": "Change default dataset permissions for history '%s'" % history.name, "inputs": inputs}
         else:
+            self.history_manager.error_unless_mutable(history)
             permissions = {}
             for action_key, action in trans.app.model.Dataset.permitted_actions.items():
                 in_roles = payload.get(action_key) or []
@@ -569,6 +574,7 @@ class HistoryController(BaseUIController, SharableMixin, UsesAnnotations, UsesIt
             trans.app.security_agent.permitted_actions.DATASET_ACCESS: [private_role],
         }
         for history in histories:
+            self.history_manager.error_unless_mutable(history)
             # Set default role for history to private
             trans.app.security_agent.history_set_default_permissions(history, private_permissions)
             # Set private role for all datasets
@@ -598,7 +604,8 @@ class HistoryController(BaseUIController, SharableMixin, UsesAnnotations, UsesIt
                     hda.mark_deleted()
         elif action == "unhide":
             trans.history.unhide_datasets()
-        trans.sa_session.flush()
+        with transaction(trans.sa_session):
+            trans.sa_session.commit()
 
     # ......................................................................... actions/orig. async
 
@@ -613,7 +620,8 @@ class HistoryController(BaseUIController, SharableMixin, UsesAnnotations, UsesIt
                 hda.purged = True
                 trans.sa_session.add(hda)
                 trans.log_event(f"HDA id {hda.id} has been purged")
-                trans.sa_session.flush()
+                with transaction(trans.sa_session):
+                    trans.sa_session.commit()
                 if hda.dataset.user_can_purge:
                     try:
                         hda.dataset.full_delete()
@@ -640,7 +648,8 @@ class HistoryController(BaseUIController, SharableMixin, UsesAnnotations, UsesIt
         for history in histories:
             history.resume_paused_jobs()
             trans.sa_session.add(history)
-        trans.sa_session.flush()
+        with transaction(trans.sa_session):
+            trans.sa_session.commit()
         return trans.show_ok_message("Your jobs have been resumed.", refresh_frames=refresh_frames)
         # TODO: used in index.mako
 
@@ -651,7 +660,8 @@ class HistoryController(BaseUIController, SharableMixin, UsesAnnotations, UsesIt
         """Returns history's name and link."""
         history = self.history_manager.get_accessible(self.decode_id(id), trans.user, current_history=trans.history)
         if self.slug_builder.create_item_slug(trans.sa_session, history):
-            trans.sa_session.flush()
+            with transaction(trans.sa_session):
+                trans.sa_session.commit()
         return_dict = {
             "name": history.name,
             "link": url_for(
@@ -668,7 +678,7 @@ class HistoryController(BaseUIController, SharableMixin, UsesAnnotations, UsesIt
     @web.require_login("set history's accessible flag")
     def set_accessible_async(self, trans, id=None, accessible=False):
         """Set history's importable attribute and slug."""
-        history = self.history_manager.get_owned(self.decode_id(id), trans.user, current_history=trans.history)
+        history = self.history_manager.get_mutable(self.decode_id(id), trans.user, current_history=trans.history)
         # Only set if importable value would change; this prevents a change in the update_time unless attribute really changed.
         importable = accessible in ["True", "true", "t", "T"]
         if history and history.importable != importable:
@@ -676,7 +686,8 @@ class HistoryController(BaseUIController, SharableMixin, UsesAnnotations, UsesIt
                 self._make_item_accessible(trans.sa_session, history)
             else:
                 history.importable = importable
-            trans.sa_session.flush()
+            with transaction(trans.sa_session):
+                trans.sa_session.commit()
         return
         # TODO: used in page/editor.mako
 
@@ -690,7 +701,7 @@ class HistoryController(BaseUIController, SharableMixin, UsesAnnotations, UsesIt
         id = listify(id)
         histories = []
         for history_id in id:
-            history = self.history_manager.get_owned(
+            history = self.history_manager.get_mutable(
                 self.decode_id(history_id), trans.user, current_history=trans.history
             )
             if history and history.user_id == user.id:
@@ -718,7 +729,8 @@ class HistoryController(BaseUIController, SharableMixin, UsesAnnotations, UsesIt
                 elif new_name != cur_name:
                     h.name = new_name
                     trans.sa_session.add(h)
-                    trans.sa_session.flush()
+                    with transaction(trans.sa_session):
+                        trans.sa_session.commit()
                     trans.log_event(f"History renamed: id: {str(h.id)}, renamed to: {new_name}")
                     messages.append(f"History '{cur_name}' renamed to '{new_name}'.")
             message = sanitize_text(" ".join(messages)) if messages else "History names remain unchanged."
@@ -748,7 +760,7 @@ class HistoryController(BaseUIController, SharableMixin, UsesAnnotations, UsesIt
     def set_as_current(self, trans, id):
         """Change the current user's current history to one with `id`."""
         try:
-            history = self.history_manager.get_owned(self.decode_id(id), trans.user, current_history=trans.history)
+            history = self.history_manager.get_mutable(self.decode_id(id), trans.user, current_history=trans.history)
             trans.set_history(history)
             return self.history_data(trans, history)
         except exceptions.MessageException as msg_exc:
