@@ -586,6 +586,7 @@ class GalaxyManagerApplication(MinimalManagerApp, MinimalGalaxyApplication):
     def _register_celery_galaxy_task_components(self):
         if self.config.celery_user_rate_limit:
             force_standard_before_start = self.config.get("celery_user_rate_limit_standard_before_start", False)
+            task_before_start: GalaxyTaskBeforeStart
             if not force_standard_before_start and self.config.database_connection.startswith("postgres"):
                 task_before_start = GalaxyTaskBeforeStartUserRateLimitPostgres(
                     self.config.celery_user_rate_limit, self.model.session
